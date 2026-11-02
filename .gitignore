@@ -1,0 +1,25 @@
+# Repository-wide ignores.
+#
+# Project-specific artifacts are ignored by the .gitignore in the directory
+# they belong to, so each part of the repo states its own rules.
+
+# Dependencies installed at the repository root
+/node_modules/
+
+# Editor and OS files
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+bun-debug.log*

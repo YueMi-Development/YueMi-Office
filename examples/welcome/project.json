@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "title": "Welcome to YueMi",
+  "language": "en",
+  "content": ["content/01-welcome.md", "content/02-layout.md"],
+  "styles": ["styles/main.css"],
+  "assetsDir": "assets",
+  "page": { "size": "A4", "orientation": "portrait" },
+  "pdf": { "variant": null }
+}

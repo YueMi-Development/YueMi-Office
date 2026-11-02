@@ -1,0 +1,104 @@
+/* Page geometry and running footer. */
+
+@page {
+  margin: 25mm 22mm 20mm;
+}
+
+@page {
+  @bottom-center {
+    content: counter(page) " of " counter(pages);
+    font-size: 9pt;
+    color: #666666;
+  }
+}
+
+/* Base typography. */
+
+body {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 11pt;
+  line-height: 1.6;
+  color: #1a1d21;
+}
+
+h1,
+h2,
+h3 {
+  font-family: 'Helvetica Neue', Arial, sans-serif;
+  font-weight: 600;
+  line-height: 1.25;
+  /* Never leave a heading stranded at the foot of a page. */
+  page-break-after: avoid;
+}
+
+h1 {
+  font-size: 22pt;
+  margin: 0 0 8pt;
+}
+
+h2 {
+  font-size: 15pt;
+  margin: 18pt 0 6pt;
+}
+
+h3 {
+  font-size: 12pt;
+  margin: 14pt 0 4pt;
+}
+
+p {
+  margin: 0 0 9pt;
+}
+
+blockquote {
+  margin: 12pt 0;
+  padding-left: 12pt;
+  border-left: 3px solid #d0d4da;
+  color: #4a4f57;
+}
+
+code {
+  font-family: 'SF Mono', Consolas, monospace;
+  font-size: 0.9em;
+  background: #f2f3f5;
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+pre {
+  background: #f2f3f5;
+  padding: 10pt 12pt;
+  border-radius: 4px;
+  overflow-wrap: break-word;
+  page-break-inside: avoid;
+}
+
+pre code {
+  background: none;
+  padding: 0;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12pt 0;
+  font-size: 10pt;
+  page-break-inside: avoid;
+}
+
+th,
+td {
+  border-bottom: 1px solid #dcdfe4;
+  padding: 6px 8px;
+  text-align: left;
+}
+
+th {
+  font-weight: 600;
+  border-bottom-width: 2px;
+}
+
+a {
+  color: #1a56b8;
+  text-decoration: none;
+}

@@ -1,0 +1,11 @@
+# Dependencies
+node_modules/
+
+# Vite build output
+dist/
+
+# TypeScript incremental build info
+*.tsbuildinfo
+
+# Test output
+coverage/

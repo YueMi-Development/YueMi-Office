@@ -1,0 +1,6 @@
+# Compiled Rust artifacts
+/target/
+
+# Generated Tauri schemas and context
+/gen/schemas
+/gen/context
