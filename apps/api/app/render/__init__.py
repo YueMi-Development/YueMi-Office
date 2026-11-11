@@ -1,1 +1,1 @@
-"""Rendering internals for the YueMi render service."""
+"""Rendering internals for the yuemi render service."""

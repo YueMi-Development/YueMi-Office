@@ -1,4 +1,4 @@
-# YueMi Office
+# yuemi
 
 A desktop app for writing and laying out print-ready documents in Markdown
 with CSS. An AI assistant will work on the project the way a coding agent

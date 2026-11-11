@@ -1,6 +1,6 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "YueMi Office",
+  "productName": "yuemi",
   "version": "0.1.0",
   "identifier": "app.yuemi.office",
   "build": {
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "YueMi Office",
+        "title": "yuemi",
         "width": 1440,
         "height": 900,
         "minWidth": 900,

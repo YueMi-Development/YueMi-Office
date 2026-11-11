@@ -34,7 +34,7 @@ def _header_value(payload: object) -> str:
 
 
 app = FastAPI(
-    title="YueMi Render Service",
+    title="yuemi Render Service",
     version="0.1.0",
     description="Renders Markdown + CSS projects to PDF.",
 )

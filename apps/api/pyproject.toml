@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "yuemi-api"
 version = "0.1.0"
-description = "Render service for the YueMi Markdown document studio"
+description = "Render service for the yuemi Markdown document studio"
 requires-python = ">=3.10"
 dependencies = [
   "fastapi>=0.110",

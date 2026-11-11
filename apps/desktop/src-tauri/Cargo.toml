@@ -1,8 +1,8 @@
 [package]
 name = "app"
 version = "0.1.0"
-description = "YueMi Office, an AI-assisted Markdown document studio"
-authors = ["YueMi"]
+description = "yuemi, an AI-assisted Markdown document studio"
+authors = ["yuemi"]
 license = "FSL-1.1-ALv2"
 repository = "https://github.com/YueMi-Development/YueMi-Office"
 edition = "2024"
