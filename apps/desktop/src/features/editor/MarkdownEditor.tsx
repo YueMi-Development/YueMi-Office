@@ -3,6 +3,7 @@ import { Compartment, EditorState, type Extension } from '@codemirror/state';
 import { EditorView, keymap, lineNumbers, highlightActiveLine } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
+import { css } from '@codemirror/lang-css';
 import { languages } from '@codemirror/language-data';
 import { searchKeymap, highlightSelectionMatches } from '@codemirror/search';
 import { tags as t } from '@lezer/highlight';
@@ -14,6 +15,13 @@ export interface MarkdownEditorProps {
   /** Called after the user pauses, so one undo step covers one editing burst. */
   onCommit?: () => void;
   readOnly?: boolean;
+  /**
+   * The language of the file being edited.
+   *
+   * A warning can point at a stylesheet, so the editor has to be able to
+   * show CSS as well as Markdown.
+   */
+  language?: 'markdown' | 'css';
 }
 
 const highlightStyle = HighlightStyle.define([
@@ -32,7 +40,6 @@ const extensions: Extension[] = [
   history(),
   highlightActiveLine(),
   highlightSelectionMatches(),
-  markdown({ base: markdownLanguage, codeLanguages: languages }),
   syntaxHighlighting(highlightStyle),
   keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap, indentWithTab]),
   EditorView.lineWrapping,
@@ -47,15 +54,31 @@ const extensions: Extension[] = [
   }),
 ];
 
+const markdownLanguageExtension = markdown({
+  base: markdownLanguage,
+  codeLanguages: languages,
+});
+
+const cssLanguageExtension = css();
+
+/**
+ * The syntax support for a file, chosen by its extension.
+ */
+function languageExtension(language: 'markdown' | 'css'): Extension {
+  return language === 'css' ? cssLanguageExtension : markdownLanguageExtension;
+}
+
 export function MarkdownEditor({
   value,
   onChange,
   onCommit,
   readOnly = false,
+  language = 'markdown',
 }: MarkdownEditorProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const viewRef = useRef<EditorView | null>(null);
   const readOnlyCompartment = useRef(new Compartment());
+  const languageCompartment = useRef(new Compartment());
   // Kept in a ref so the change handler does not need to be rebuilt on every
   // render, which would tear down the editor.
   const onChangeRef = useRef(onChange);
@@ -86,6 +109,7 @@ export function MarkdownEditor({
         extensions: [
           ...extensions,
           readOnlyCompartment.current.of(EditorState.readOnly.of(readOnly)),
+          languageCompartment.current.of(languageExtension(language)),
           EditorView.updateListener.of((update) => {
             if (update.docChanged) {
               onChangeRef.current(update.state.doc.toString());
@@ -141,6 +165,16 @@ export function MarkdownEditor({
       ),
     });
   }, [readOnly]);
+
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) {
+      return;
+    }
+    view.dispatch({
+      effects: languageCompartment.current.reconfigure(languageExtension(language)),
+    });
+  }, [language]);
 
   return <div ref={hostRef} className="editor-host" data-testid="markdown-editor" />;
 }

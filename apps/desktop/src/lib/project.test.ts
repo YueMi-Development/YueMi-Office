@@ -6,7 +6,9 @@ import {
   dirname,
   normalizePath,
   parseProject,
+  PROJECT_SCHEMA_VERSION,
   serializeProject,
+  upgradeProject,
   validateProject,
 } from '../lib/project';
 
@@ -15,7 +17,7 @@ describe('createEmptyProject', () => {
     const project = createEmptyProject('My Report');
 
     expect(project.title).toBe('My Report');
-    expect(project.schemaVersion).toBe(1);
+    expect(project.schemaVersion).toBe(PROJECT_SCHEMA_VERSION);
     expect(project.page.size).toBe('A4');
     expect(project.page.orientation).toBe('portrait');
     expect(project.content).toEqual([]);
@@ -71,6 +73,44 @@ describe('validateProject', () => {
 
     expect(issues.some((issue) => issue.path === 'content[1]')).toBe(true);
   });
+
+  it('reports a fonts list that is not an array of paths', () => {
+    const issues = validateProject({
+      ...createEmptyProject(),
+      fonts: ['fonts/ok.woff2', 7],
+    });
+
+    expect(issues.some((issue) => issue.path === 'fonts[1]')).toBe(true);
+  });
+
+  it('accepts a project without a fonts list', () => {
+    const { fonts, ...withoutFonts } = createEmptyProject();
+
+    expect(validateProject(withoutFonts)).toEqual([]);
+  });
+});
+
+describe('upgradeProject', () => {
+  it('gives a version 1 project an empty fonts list', () => {
+    const project = { ...createEmptyProject(), schemaVersion: 1 } as Partial<
+      ReturnType<typeof createEmptyProject>
+    >;
+    delete project.fonts;
+
+    const upgraded = upgradeProject(project as ReturnType<typeof createEmptyProject>);
+
+    expect(upgraded.schemaVersion).toBe(PROJECT_SCHEMA_VERSION);
+    expect(upgraded.fonts).toEqual([]);
+  });
+
+  it('keeps the fonts a project already has', () => {
+    const project = {
+      ...createEmptyProject(),
+      fonts: ['fonts/inter-400.woff2'],
+    };
+
+    expect(upgradeProject(project).fonts).toEqual(['fonts/inter-400.woff2']);
+  });
 });
 
 describe('parseProject', () => {
@@ -107,6 +147,34 @@ describe('parseProject', () => {
 
     expect(project.page.size).toBe('Letter');
     expect(project.page.orientation).toBe('landscape');
+  });
+
+  it('upgrades a version 1 project by giving it a fonts list', () => {
+    const { project, issues } = parseProject(
+      JSON.stringify({
+        schemaVersion: 1,
+        title: 'Old Project',
+        language: 'en',
+        content: ['content/a.md'],
+        styles: ['styles/main.css'],
+        assetsDir: 'assets',
+        page: { size: 'A4', orientation: 'portrait' },
+        pdf: { variant: null },
+      }),
+    );
+
+    expect(issues).toEqual([]);
+    expect(project.schemaVersion).toBe(PROJECT_SCHEMA_VERSION);
+    expect(project.fonts).toEqual([]);
+  });
+
+  it('keeps the fonts of a version 2 project', () => {
+    const project = createEmptyProject('With Fonts');
+    project.fonts = ['fonts/inter-400.woff2'];
+
+    const { project: parsed } = parseProject(serializeProject(project));
+
+    expect(parsed.fonts).toEqual(['fonts/inter-400.woff2']);
   });
 });
 

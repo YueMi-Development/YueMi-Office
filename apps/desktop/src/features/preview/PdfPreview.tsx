@@ -1,12 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import type { RenderWarning } from '@yuemi/protocol';
-
 export interface PdfPreviewProps {
   pdf: Uint8Array | null;
   status: 'idle' | 'rendering' | 'ready' | 'error';
   error: string | null;
-  warnings: RenderWarning[];
 }
 
 interface PdfDocument {
@@ -35,7 +32,7 @@ async function loadPdfJs(): Promise<typeof import('pdfjs-dist')> {
   return pdfjsPromise;
 }
 
-export function PdfPreview({ pdf, status, error, warnings }: PdfPreviewProps) {
+export function PdfPreview({ pdf, status, error }: PdfPreviewProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const documentRef = useRef<PdfDocument | null>(null);
   const renderTaskRef = useRef<{ cancel: () => void } | null>(null);
@@ -196,16 +193,6 @@ export function PdfPreview({ pdf, status, error, warnings }: PdfPreviewProps) {
         {loadError && <div className="preview-status preview-error">{loadError}</div>}
         <canvas ref={canvasRef} className="preview-canvas" />
       </div>
-
-      {warnings.length > 0 && (
-        <ul className="preview-warnings">
-          {warnings.map((warning, index) => (
-            <li key={`${warning.code}-${index}`}>
-              <strong>{warning.code}</strong> {warning.message}
-            </li>
-          ))}
-        </ul>
-      )}
     </div>
   );
 }

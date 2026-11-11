@@ -4,15 +4,23 @@ import { FileTree } from './features/files/FileTree';
 import { MarkdownEditor } from './features/editor/MarkdownEditor';
 import { Outline } from './features/outline/Outline';
 import { PdfPreview } from './features/preview/PdfPreview';
+import { SettingsDialog } from './features/settings/SettingsDialog';
+import { TemplatePicker } from './features/templates/TemplatePicker';
+import { createProjectFromTemplate } from './features/templates/createFromTemplate';
+import type { DocumentTemplate } from './features/templates/templates';
+import { WarningsPanel } from './features/warnings/WarningsPanel';
 import { useEditorStore } from './state/editorStore';
 import { usePreviewStore } from './state/previewStore';
 import { useProjectStore } from './state/projectStore';
-import { pickSavePath } from './lib/dialog';
+import { useSettingsStore } from './state/settingsStore';
+import { pickNewProjectFolder, pickSavePath } from './lib/dialog';
 import { exportFile, joinMarkdown, openProject } from './lib/files';
 import { parseProject } from './lib/project';
 
 export function App() {
   const [projectIssues, setProjectIssues] = useState<string | null>(null);
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
 
   const {
     project,
@@ -33,6 +41,7 @@ export function App() {
   const { activePath, setActivePath } = useEditorStore();
   const { status, pdf, outline, pageCount, warnings, error, requestRender } =
     usePreviewStore();
+  const serviceUrl = useSettingsStore((state) => state.serviceUrl);
 
   // Autosave every 10 seconds, as required by PRD section 8.
   const autosaveRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -55,15 +64,24 @@ export function App() {
   const activeFile = activePath ?? project.content[0] ?? null;
 
   useEffect(() => {
-    if (activePath && !project.content.includes(activePath)) {
+    // The file is cleared when it is gone from the project, but a file that
+    // is not part of the document order — a stylesheet, say — stays open,
+    // because a warning can point at one.
+    if (activePath && !(activePath in files)) {
       setActivePath(null);
     }
-  }, [activePath, project.content, setActivePath]);
+  }, [activePath, files, setActivePath]);
 
   // Re-render whenever the project changes.
   useEffect(() => {
     requestRender();
   }, [project, files, requestRender]);
+
+  // A different service means a different renderer, so the preview has to be
+  // produced again.
+  useEffect(() => {
+    requestRender();
+  }, [serviceUrl, requestRender]);
 
   const handleTextChange = useCallback(
     (text: string) => {
@@ -110,6 +128,30 @@ export function App() {
     await exportFile(path, joinMarkdown(state.project, state.files));
   }, []);
 
+  const handleNewProject = useCallback(async (template: DocumentTemplate) => {
+    setShowTemplates(false);
+    const folder = await pickNewProjectFolder(
+      `Create a new ${template.name.toLowerCase()} project`,
+    );
+    if (!folder) {
+      return;
+    }
+
+    await createProjectFromTemplate(folder, template);
+
+    const result = await openProject(folder);
+    const { project, issues } = parseProject(
+      result.project ? JSON.stringify(result.project) : '',
+    );
+    setProjectIssues(issues.length > 0 ? issues.map((issue) => issue.message).join(' ') : null);
+
+    useProjectStore.getState().openProject(
+      folder,
+      project,
+      result.files.map((file) => ({ path: file.path, text: file.text })),
+    );
+  }, []);
+
   const handleSave = useCallback(async () => {
     const state = useProjectStore.getState();
     if (!state.rootPath) {
@@ -148,6 +190,20 @@ export function App() {
     [activeFile, files],
   );
 
+  const editorLanguage = useMemo< 'markdown' | 'css' >(() => {
+    if (!activeFile) {
+      return 'markdown';
+    }
+    return activeFile.toLowerCase().endsWith('.css') ? 'css' : 'markdown';
+  }, [activeFile]);
+
+  const handleOpenWarningFile = useCallback(
+    (path: string) => {
+      setActivePath(path);
+    },
+    [setActivePath],
+  );
+
   return (
     <div className="app">
       <header className="app-header">
@@ -164,6 +220,9 @@ export function App() {
         </div>
 
         <div className="app-actions">
+          <button type="button" onClick={() => setShowTemplates(true)}>
+            New
+          </button>
           <button type="button" onClick={handleOpen}>
             Open
           </button>
@@ -181,6 +240,13 @@ export function App() {
           </button>
           <button type="button" onClick={handleExportMarkdown}>
             Export Markdown
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowSettings(true)}
+            title={serviceUrl}
+          >
+            Settings
           </button>
         </div>
       </header>
@@ -216,6 +282,7 @@ export function App() {
               value={editorValue}
               onChange={handleTextChange}
               onCommit={commit}
+              language={editorLanguage}
             />
           ) : (
             <div className="editor-placeholder">
@@ -228,14 +295,23 @@ export function App() {
         </section>
 
         <section className="app-preview">
-          <PdfPreview
-            pdf={pdf}
-            status={status}
-            error={error}
-            warnings={warnings}
-          />
+          <PdfPreview pdf={pdf} status={status} error={error} />
+          <WarningsPanel warnings={warnings} onOpenFile={handleOpenWarningFile} />
         </section>
       </main>
+
+      {showTemplates && (
+        <TemplatePicker
+          onPick={(template) => {
+            void handleNewProject(template);
+          }}
+          onCancel={() => setShowTemplates(false)}
+        />
+      )}
+
+      {showSettings && (
+        <SettingsDialog onClose={() => setShowSettings(false)} />
+      )}
     </div>
   );
 }

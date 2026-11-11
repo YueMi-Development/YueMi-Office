@@ -6,8 +6,8 @@ mod project_tests;
 /// The filesystem commands, exposed so they can be tested directly.
 pub mod testing {
     pub use crate::project::{
-        export_binary_file, export_text_file, open_project, read_binary_file, save_project,
-        write_project_file,
+        collect_project_binaries, create_project, export_binary_file, export_text_file,
+        open_project, read_binary_file, save_project, write_project_file,
     };
 }
 
@@ -32,6 +32,8 @@ pub fn run() {
       project::command_export_text_file,
       project::command_export_binary_file,
       project::command_read_binary_file,
+      project::command_collect_project_binaries,
+      project::command_create_project,
     ])
     .run(tauri::generate_context!())
     .expect("error while building tauri application");

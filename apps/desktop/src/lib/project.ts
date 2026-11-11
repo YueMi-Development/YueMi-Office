@@ -17,6 +17,7 @@ export function createEmptyProject(title = 'Untitled'): Project {
     language: 'en',
     content: [],
     styles: ['styles/main.css'],
+    fonts: [],
     assetsDir: 'assets',
     page: { size: 'A4', orientation: 'portrait' },
     pdf: { variant: null },
@@ -78,6 +79,18 @@ export function validateProject(value: unknown): ProjectValidationIssue[] {
         issues.push({ path: `styles[${index}]`, message: 'Must be a file path.' });
       }
     });
+  }
+
+  if (project.fonts !== undefined) {
+    if (!Array.isArray(project.fonts)) {
+      issues.push({ path: 'fonts', message: 'Must be an array of file paths.' });
+    } else {
+      project.fonts.forEach((entry, index) => {
+        if (typeof entry !== 'string' || entry.length === 0) {
+          issues.push({ path: `fonts[${index}]`, message: 'Must be a file path.' });
+        }
+      });
+    }
   }
 
   if (typeof project.assetsDir !== 'string') {
@@ -149,19 +162,41 @@ export function parseProject(text: string): {
         ...partial,
         page: { ...fallback.page, ...(partial.page ?? {}) },
         pdf: { ...fallback.pdf, ...(partial.pdf ?? {}) },
+        fonts: partial.fonts ?? fallback.fonts,
       },
       issues,
     };
   }
 
-  return { project: parsed as Project, issues: [] };
+  const project = parsed as Project;
+  return {
+    project: upgradeProject(project),
+    issues: [],
+  };
+}
+
+/**
+ * Brings a project up to the current schema version.
+ *
+ * A project written by an older version of the app keeps working; it is
+ * upgraded the next time it is saved.
+ */
+export function upgradeProject(project: Project): Project {
+  return {
+    ...project,
+    schemaVersion: PROJECT_SCHEMA_VERSION,
+    fonts: project.fonts ?? [],
+  };
 }
 
 /**
  * Serializes a project for writing to `project.json`.
+ *
+ * The schema version is always the current one, so a project written by an
+ * older version of the app is upgraded the first time it is saved.
  */
 export function serializeProject(project: Project): string {
-  return `${JSON.stringify(project, null, 2)}\n`;
+  return `${JSON.stringify(upgradeProject(project), null, 2)}\n`;
 }
 
 /**

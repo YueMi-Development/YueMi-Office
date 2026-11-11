@@ -1,0 +1,64 @@
+{
+  "report": {
+    "name": "Report",
+    "description": "A structured report with a running header, page numbers and a table of contents.",
+    "files": {
+      "content/01-report.md": "# Report Title\n\nA short summary of the document goes here. Replace this paragraph with the\nabstract or executive summary of your report.\n\n## Overview\n\nWrite the body of the report under a heading. Headings build the outline in\nthe sidebar and the running header at the top of each page.\n\n### A subsection\n\nSubheadings work the same way.\n\n## Findings\n\n| Metric | Value | Notes |\n| --- | --- | --- |\n| Coverage | 94% | Measured across the reference suite |\n| Errors | 0 | No mismatches in the last run |\n\nAdd a table like the one above to present data.\n\n## Next steps\n\n1. Replace this section with your own.\n2. Export the document as a PDF when it is ready.\n",
+      "styles/main.css": "@page {\n  size: A4;\n  margin: 25mm 22mm 25mm 22mm;\n\n  @top-center {\n    content: string(section);\n    font-family: \"Inter\";\n    font-size: 8pt;\n    color: #6b7280;\n  }\n\n  @bottom-center {\n    content: counter(page) \" of \" counter(pages);\n    font-family: \"Inter\";\n    font-size: 8pt;\n    color: #6b7280;\n  }\n}\n\n@page :first {\n  @top-center {\n    content: none;\n  }\n}\n\nbody {\n  font-family: \"Inter\";\n  font-size: 10.5pt;\n  line-height: 1.55;\n  color: #111827;\n}\n\nh1 {\n  font-size: 24pt;\n  font-weight: 700;\n  margin: 0 0 6mm 0;\n  string-set: section content();\n}\n\nh2 {\n  font-size: 15pt;\n  font-weight: 700;\n  margin: 8mm 0 3mm 0;\n  break-after: avoid;\n}\n\nh3 {\n  font-size: 12pt;\n  font-weight: 700;\n  margin: 6mm 0 2mm 0;\n  break-after: avoid;\n}\n\np {\n  margin: 0 0 3mm 0;\n  orphans: 3;\n  widows: 3;\n}\n\nul, ol {\n  margin: 0 0 3mm 0;\n  padding-left: 6mm;\n}\n\ntable {\n  width: 100%;\n  border-collapse: collapse;\n  margin: 0 0 4mm 0;\n}\n\nth, td {\n  border-bottom: 0.4pt solid #d1d5db;\n  padding: 2mm 2mm;\n  text-align: left;\n}\n\nth {\n  font-weight: 700;\n  background: #f3f4f6;\n}\n\ncode {\n  font-family: \"Inter\";\n  background: #f3f4f6;\n  padding: 0.5mm 1mm;\n}\n\nblockquote {\n  margin: 3mm 0;\n  padding-left: 4mm;\n  border-left: 1.2pt solid #d1d5db;\n  color: #4b5563;\n}\n"
+    },
+    "fonts": [
+      {
+        "path": "fonts/inter-400.woff2",
+        "source": "/fonts/inter-400.woff2"
+      },
+      {
+        "path": "fonts/inter-700.woff2",
+        "source": "/fonts/inter-700.woff2"
+      }
+    ]
+  },
+  "resume": {
+    "name": "Resume",
+    "description": "A single-column resume with no headers or page numbers.",
+    "files": {
+      "content/01-resume.md": "# Your Name\n\nYour title, city and email go here.\n\n## Experience\n\n**Company, Role** — 2021 to present\n\nDescribe what you did and what came of it. One or two lines per role is\nenough.\n\n**Previous Company, Previous Role** — 2018 to 2021\n\n## Education\n\n**Degree, Institution** — Year\n\n## Skills\n\n- Skill one\n- Skill two\n- Skill three\n",
+      "styles/main.css": "@page {\n  size: A4;\n  margin: 16mm 16mm 16mm 16mm;\n}\n\nbody {\n  font-family: \"Inter\";\n  font-size: 10pt;\n  line-height: 1.4;\n  color: #111827;\n}\n\nh1 {\n  font-size: 20pt;\n  font-weight: 700;\n  margin: 0;\n}\n\nh1 + p {\n  font-size: 10.5pt;\n  color: #4b5563;\n  margin: 1mm 0 5mm 0;\n}\n\nh2 {\n  font-size: 10pt;\n  font-weight: 700;\n  text-transform: uppercase;\n  letter-spacing: 0.08em;\n  color: #6b7280;\n  margin: 5mm 0 2mm 0;\n  border-bottom: 0.5pt solid #d1d5db;\n  padding-bottom: 1mm;\n  break-after: avoid;\n}\n\np {\n  margin: 0 0 2mm 0;\n}\n\nul {\n  margin: 0 0 2mm 0;\n  padding-left: 5mm;\n}\n"
+    },
+    "fonts": [
+      {
+        "path": "fonts/inter-400.woff2",
+        "source": "/fonts/inter-400.woff2"
+      },
+      {
+        "path": "fonts/inter-700.woff2",
+        "source": "/fonts/inter-700.woff2"
+      }
+    ]
+  },
+  "article": {
+    "name": "Article",
+    "description": "A long-form article in a serif face with pull quotes.",
+    "files": {
+      "content/01-article.md": "# The Title of the Article\n\nA subtitle or standfirst that tells the reader what the piece is about.\n\n## The first section\n\nAn article reads differently from a report. It sets the scene, then argues a\npoint. The bundled serif face is used for the body text, while headings use\nthe sans face so they stand out.\n\n> A pull quote goes here. It is set in italics with a rule down its left edge.\n\n## The second section\n\nKeep paragraphs short. If a paragraph runs past four or five lines, it is\nusually two paragraphs.\n\n### A subsection\n\nSubheadings break up long arguments.\n\n## Closing\n\nEnd with the point the article was making.\n",
+      "styles/main.css": "@page {\n  size: A4;\n  margin: 24mm 24mm 24mm 24mm;\n\n  @bottom-center {\n    content: counter(page);\n    font-family: \"Inter\";\n    font-size: 8pt;\n    color: #6b7280;\n  }\n}\n\nbody {\n  font-family: \"Source Serif 4\";\n  font-size: 11.5pt;\n  line-height: 1.6;\n  color: #1f2937;\n}\n\nh1 {\n  font-family: \"Inter\";\n  font-size: 22pt;\n  font-weight: 700;\n  line-height: 1.25;\n  margin: 0 0 5mm 0;\n}\n\nh2 {\n  font-family: \"Inter\";\n  font-size: 14pt;\n  font-weight: 700;\n  margin: 8mm 0 3mm 0;\n  break-after: avoid;\n}\n\nh3 {\n  font-family: \"Inter\";\n  font-size: 12pt;\n  font-weight: 700;\n  margin: 6mm 0 2mm 0;\n  break-after: avoid;\n}\n\np {\n  margin: 0 0 3.5mm 0;\n  orphans: 3;\n  widows: 3;\n}\n\nblockquote {\n  font-style: italic;\n  margin: 5mm 0;\n  padding-left: 5mm;\n  border-left: 1.2pt solid #cbd5e1;\n  color: #475569;\n}\n\ncode {\n  font-family: \"Inter\";\n  font-size: 0.9em;\n  background: #f1f5f9;\n  padding: 0.5mm 1mm;\n}\n"
+    },
+    "fonts": [
+      {
+        "path": "fonts/inter-400.woff2",
+        "source": "/fonts/inter-400.woff2"
+      },
+      {
+        "path": "fonts/inter-700.woff2",
+        "source": "/fonts/inter-700.woff2"
+      },
+      {
+        "path": "fonts/source-serif-4-400.woff2",
+        "source": "/fonts/source-serif-4-400.woff2"
+      },
+      {
+        "path": "fonts/source-serif-4-400-italic.woff2",
+        "source": "/fonts/source-serif-4-400-italic.woff2"
+      }
+    ]
+  }
+}

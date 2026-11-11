@@ -38,3 +38,23 @@ export async function pickSavePath(
   const selected = await save({ defaultPath, filters });
   return selected ?? null;
 }
+
+/**
+ * Asks the user where to put a new project.
+ *
+ * Returns null when the dialog is cancelled.
+ */
+export async function pickNewProjectFolder(title: string): Promise<string | null> {
+  if (!isTauri()) {
+    return null;
+  }
+  const selected = await open({
+    directory: true,
+    multiple: false,
+    title,
+  });
+  if (typeof selected === 'string') {
+    return selected;
+  }
+  return null;
+}

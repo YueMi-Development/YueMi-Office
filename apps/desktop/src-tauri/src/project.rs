@@ -7,6 +7,7 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 
+use base64::Engine;
 use serde::Serialize;
 
 /// A text file found in a project folder.
@@ -16,6 +17,18 @@ pub struct DiscoveredFile {
     /// Path relative to the project root, with forward slashes.
     pub path: String,
     pub text: String,
+}
+
+/// A binary file found in a project folder.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DiscoveredBinaryFile {
+    /// Path relative to the project root, with forward slashes.
+    pub path: String,
+    /// Base64-encoded file contents.
+    pub base64: String,
+    /// MIME type derived from the file extension.
+    pub mime_type: String,
 }
 
 /// The result of reading a project folder.
@@ -30,6 +43,13 @@ pub struct OpenProjectResult {
 
 /// Extensions treated as project text files.
 const TEXT_EXTENSIONS: &[&str] = &["md", "markdown", "css", "json", "txt", "yaml", "yml"];
+
+/// Extensions treated as project binary assets, which are inlined into a
+/// render request rather than edited in the app.
+const BINARY_EXTENSIONS: &[&str] = &[
+    "png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "ico", "pdf", "woff", "woff2", "ttf",
+    "otf", "eot",
+];
 
 /// Directory names that are never scanned.
 const SKIPPED_DIRECTORIES: &[&str] = &[
@@ -108,6 +128,42 @@ fn is_text_file(path: &Path) -> bool {
     }
 }
 
+/// Whether a file looks like a project binary asset.
+fn is_binary_file(path: &Path) -> bool {
+    match path.extension().and_then(|value| value.to_str()) {
+        Some(extension) => {
+            let lowered = extension.to_ascii_lowercase();
+            BINARY_EXTENSIONS.contains(&lowered.as_str())
+        }
+        None => false,
+    }
+}
+
+/// The MIME type to serve a file with, based on its extension.
+fn mime_type_for(path: &Path) -> &'static str {
+    match path
+        .extension()
+        .and_then(|value| value.to_str())
+        .map(|value| value.to_ascii_lowercase())
+        .as_deref()
+    {
+        Some("png") => "image/png",
+        Some("jpg") | Some("jpeg") => "image/jpeg",
+        Some("gif") => "image/gif",
+        Some("webp") => "image/webp",
+        Some("bmp") => "image/bmp",
+        Some("svg") => "image/svg+xml",
+        Some("ico") => "image/x-icon",
+        Some("pdf") => "application/pdf",
+        Some("woff") => "font/woff",
+        Some("woff2") => "font/woff2",
+        Some("ttf") => "font/ttf",
+        Some("otf") => "font/otf",
+        Some("eot") => "application/vnd.ms-fontobject",
+        _ => "application/octet-stream",
+    }
+}
+
 /// Recursively collects the text files in a folder.
 fn collect_text_files(root: &Path, directory: &Path, files: &mut Vec<DiscoveredFile>) {
     let entries = match fs::read_dir(directory) {
@@ -138,6 +194,109 @@ fn collect_text_files(root: &Path, directory: &Path, files: &mut Vec<DiscoveredF
             }
         }
     }
+}
+
+/// Recursively collects the binary files in a folder.
+fn collect_binary_files(
+    root: &Path,
+    directory: &Path,
+    files: &mut Vec<DiscoveredBinaryFile>,
+) {
+    let entries = match fs::read_dir(directory) {
+        Ok(entries) => entries,
+        Err(_) => return,
+    };
+
+    let mut paths: Vec<PathBuf> = entries.filter_map(|entry| entry.ok().map(|e| e.path())).collect();
+    paths.sort();
+
+    for path in paths {
+        let name = path
+            .file_name()
+            .and_then(|value| value.to_str())
+            .unwrap_or_default();
+
+        if path.is_dir() {
+            if SKIPPED_DIRECTORIES.contains(&name) || name.starts_with('.') {
+                continue;
+            }
+            collect_binary_files(root, &path, files);
+        } else if is_binary_file(&path) {
+            if let Ok(bytes) = fs::read(&path) {
+                files.push(DiscoveredBinaryFile {
+                    path: to_relative_string(&path, root),
+                    base64: base64::engine::general_purpose::STANDARD.encode(&bytes),
+                    mime_type: mime_type_for(&path).to_string(),
+                });
+            }
+        }
+    }
+}
+
+/// The fonts and assets of a project, ready to be inlined in a render request.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectBinaries {
+    /// The font files the project asked for.
+    pub fonts: Vec<DiscoveredBinaryFile>,
+    /// The other binary files, such as images.
+    pub assets: Vec<DiscoveredBinaryFile>,
+}
+
+/// Reads the project's fonts and assets, ready to be inlined in a render
+/// request.
+///
+/// The fonts are named explicitly in `project.json`, because a document
+/// should only use the fonts it asked for. The assets directory is scanned,
+/// because images are referenced by whatever name the document uses.
+pub fn collect_project_binaries(
+    root_path: String,
+    font_paths: Vec<String>,
+    assets_dir: String,
+) -> Result<ProjectBinaries, String> {
+    let root = PathBuf::from(&root_path);
+    if !root.is_dir() {
+        return Err(format!("Not a folder: {root_path}"));
+    }
+
+    let mut fonts: Vec<DiscoveredBinaryFile> = Vec::new();
+    let mut assets: Vec<DiscoveredBinaryFile> = Vec::new();
+    let mut seen: Vec<String> = Vec::new();
+
+    for relative in &font_paths {
+        let path = resolve_in_project(&root, relative)?;
+        if !path.is_file() {
+            continue;
+        }
+        let bytes = fs::read(&path).map_err(|error| format!("Cannot read {relative}: {error}"))?;
+        let key = to_relative_string(&path, &root);
+        if seen.contains(&key) {
+            continue;
+        }
+        seen.push(key.clone());
+        fonts.push(DiscoveredBinaryFile {
+            path: key,
+            base64: base64::engine::general_purpose::STANDARD.encode(&bytes),
+            mime_type: mime_type_for(&path).to_string(),
+        });
+    }
+
+    if !assets_dir.is_empty() {
+        let assets_path = resolve_in_project(&root, &assets_dir)?;
+        if assets_path.is_dir() {
+            let mut asset_files: Vec<DiscoveredBinaryFile> = Vec::new();
+            collect_binary_files(&root, &assets_path, &mut asset_files);
+            for asset in asset_files {
+                if seen.contains(&asset.path) {
+                    continue;
+                }
+                seen.push(asset.path.clone());
+                assets.push(asset);
+            }
+        }
+    }
+
+    Ok(ProjectBinaries { fonts, assets })
 }
 
 /// Reads a project folder: its `project.json` and its text files.
@@ -237,6 +396,61 @@ pub fn read_binary_file(root_path: String, path: String) -> Result<Vec<u8>, Stri
     fs::read(&target).map_err(|error| format!("Cannot read {path}: {error}"))
 }
 
+/// A file to create as part of a new project.
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectFileToWrite {
+    /// Path relative to the project root, with forward slashes.
+    pub path: String,
+    /// Text contents, for Markdown and CSS files.
+    #[serde(default)]
+    pub text: Option<String>,
+    /// Base64 contents, for font and image files.
+    #[serde(default)]
+    pub base64: Option<String>,
+}
+
+/// Creates a new project folder from a set of files.
+///
+/// The folder is created if it does not exist, and every file is written
+/// inside it. Text and binary files are handled the same way, so a template
+/// can carry its font along with its stylesheet.
+pub fn create_project(
+    root_path: String,
+    project: serde_json::Value,
+    files: Vec<ProjectFileToWrite>,
+) -> Result<(), String> {
+    let root = PathBuf::from(&root_path);
+    fs::create_dir_all(&root).map_err(|error| format!("Cannot create folder: {error}"))?;
+
+    for file in &files {
+        let target = resolve_in_project(&root, &file.path)?;
+        if let Some(parent) = target.parent() {
+            fs::create_dir_all(parent)
+                .map_err(|error| format!("Cannot create folder for {}: {error}", file.path))?;
+        }
+
+        if let Some(encoded) = &file.base64 {
+            let bytes = base64::engine::general_purpose::STANDARD
+                .decode(encoded)
+                .map_err(|error| format!("Cannot decode {}: {error}", file.path))?;
+            fs::write(&target, bytes)
+                .map_err(|error| format!("Cannot write {}: {error}", file.path))?;
+        } else {
+            fs::write(&target, file.text.as_deref().unwrap_or_default())
+                .map_err(|error| format!("Cannot write {}: {error}", file.path))?;
+        }
+    }
+
+    let project_path = root.join("project.json");
+    let serialized = serde_json::to_string_pretty(&project)
+        .map_err(|error| format!("Cannot serialize project: {error}"))?;
+    fs::write(&project_path, format!("{serialized}\n"))
+        .map_err(|error| format!("Cannot write project.json: {error}"))?;
+
+    Ok(())
+}
+
 // The command wrappers the webview calls. The logic lives in the plain
 // functions above so it can be tested without a Tauri runtime.
 
@@ -282,4 +496,25 @@ pub fn command_export_binary_file(path: String, contents: Vec<u8>) -> Result<(),
 #[tauri::command]
 pub fn command_read_binary_file(root_path: String, path: String) -> Result<Vec<u8>, String> {
     read_binary_file(root_path, path)
+}
+
+/// Collects the project's fonts and assets, ready to be inlined in a render
+/// request.
+#[tauri::command]
+pub fn command_collect_project_binaries(
+    root_path: String,
+    font_paths: Vec<String>,
+    assets_dir: String,
+) -> Result<ProjectBinaries, String> {
+    collect_project_binaries(root_path, font_paths, assets_dir)
+}
+
+/// Creates a new project folder from a set of files.
+#[tauri::command]
+pub fn command_create_project(
+    root_path: String,
+    project: serde_json::Value,
+    files: Vec<ProjectFileToWrite>,
+) -> Result<(), String> {
+    create_project(root_path, project, files)
 }

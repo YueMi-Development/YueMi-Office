@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { OutlineEntry, RenderWarning } from '@yuemi/protocol';
 
 import { renderProject } from '../lib/api';
+import { loadProjectBinaries } from '../lib/projectAssets';
 import { useProjectStore } from './projectStore';
 
 /** How long to wait after the last edit before rendering. */
@@ -81,14 +82,26 @@ async function runRender(
 ): Promise<void> {
   const projectState = useProjectStore.getState();
 
+  const { fonts, assets } = await loadProjectBinaries(
+    projectState.rootPath,
+    projectState.project.fonts ?? [],
+    projectState.project.assetsDir,
+  );
+
+  // Reading the binaries takes a moment, and a newer request may have been
+  // made in the meantime.
+  if (get().requestId !== requestId) {
+    return;
+  }
+
   const request = {
     project: projectState.project,
     files: Object.entries(projectState.files).map(([path, text]) => ({
       path,
       text,
     })),
-    assets: [],
-    fonts: [],
+    assets,
+    fonts,
   };
 
   set({ status: 'rendering', error: null });

@@ -6,13 +6,15 @@ import type {
   RenderWarning,
 } from '@yuemi/protocol';
 
+import { DEFAULT_SERVICE_URL } from './serviceUrl';
+
 /**
  * Where the render service lives.
  *
  * Defaults to a local service for development. The packaged app reads this
  * from its settings so the URL is never hardcoded into the bundle.
  */
-const DEFAULT_BASE_URL = 'http://127.0.0.1:8000';
+const DEFAULT_BASE_URL = DEFAULT_SERVICE_URL;
 
 let baseUrl = DEFAULT_BASE_URL;
 
@@ -71,6 +73,22 @@ function parseWarnings(response: Response): RenderWarning[] {
   }
 }
 
+function parseOutline(response: Response): RenderOutline | null {
+  const header = response.headers.get('X-Outline');
+  if (!header) {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(header) as Partial<RenderOutline>;
+    return {
+      entries: parsed.entries ?? [],
+      pageCount: parsed.pageCount ?? 0,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export interface RenderResult {
   pdf: Uint8Array;
   outline: RenderOutline;
@@ -81,7 +99,8 @@ export interface RenderResult {
  * Renders a project and returns the PDF together with its outline.
  *
  * The outline comes from the same render, so its page numbers always match
- * the PDF the preview shows.
+ * the PDF the preview shows. The service sends it in a header, which means
+ * the document is laid out once rather than twice.
  */
 export async function renderProject(request: RenderRequest): Promise<RenderResult> {
   const response = await fetch(`${baseUrl}/v1/render`, {
@@ -96,9 +115,17 @@ export async function renderProject(request: RenderRequest): Promise<RenderResul
 
   const pdf = new Uint8Array(await response.arrayBuffer());
   const warnings = parseWarnings(response);
+  const outline = parseOutline(response);
 
-  const outline = await fetchOutline(request);
-  return { pdf, outline, warnings };
+  if (outline) {
+    return { pdf, outline, warnings };
+  }
+
+  // The service did not send the outline, which happens when the document is
+  // large enough for the header to be dropped. It is fetched separately so
+  // the outline is never silently wrong.
+  const fetched = await fetchOutline(request);
+  return { pdf, outline: fetched, warnings };
 }
 
 /**

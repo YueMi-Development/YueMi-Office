@@ -19,6 +19,26 @@ export interface OpenProjectResult {
 }
 
 /**
+ * A binary file in the project folder.
+ */
+export interface DiscoveredBinaryFile {
+  /** Path relative to the project root, with forward slashes. */
+  path: string;
+  /** Base64-encoded file contents. */
+  base64: string;
+  /** MIME type derived from the file extension. */
+  mimeType: string;
+}
+
+/**
+ * The fonts and assets of a project, ready to be inlined in a render request.
+ */
+export interface ProjectBinaries {
+  fonts: DiscoveredBinaryFile[];
+  assets: DiscoveredBinaryFile[];
+}
+
+/**
  * Reads a project folder.
  *
  * The Rust side does the filesystem work so the webview never needs broad
@@ -26,6 +46,48 @@ export interface OpenProjectResult {
  */
 export async function openProject(rootPath: string): Promise<OpenProjectResult> {
   return invoke<OpenProjectResult>('open_project', { rootPath });
+}
+
+/**
+ * Reads the project's bundled fonts and its assets.
+ *
+ * The fonts are the ones the project named, so a document only ever uses the
+ * fonts it asked for. The assets are everything in the project's assets
+ * folder.
+ */
+export async function collectProjectBinaries(
+  rootPath: string,
+  fontPaths: string[],
+  assetsDir: string,
+): Promise<ProjectBinaries> {
+  return invoke<ProjectBinaries>('collect_project_binaries', {
+    rootPath,
+    fontPaths,
+    assetsDir,
+  });
+}
+
+/**
+ * A file to write as part of a new project.
+ */
+export interface ProjectFileToWrite {
+  /** Path relative to the project root, with forward slashes. */
+  path: string;
+  /** Text contents, for Markdown and CSS files. */
+  text?: string;
+  /** Base64 contents, for font and image files. */
+  base64?: string;
+}
+
+/**
+ * Creates a new project folder and fills it with the given files.
+ */
+export async function createProject(
+  rootPath: string,
+  project: unknown,
+  files: ProjectFileToWrite[],
+): Promise<void> {
+  await invoke('create_project', { rootPath, project, files });
 }
 
 /**

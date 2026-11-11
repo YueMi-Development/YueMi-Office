@@ -35,10 +35,10 @@ describe('usePreviewStore', () => {
 
     usePreviewStore.getState().requestRender();
 
-    vi.advanceTimersByTime(200);
+    await vi.advanceTimersByTimeAsync(200);
     expect(renderSpy).not.toHaveBeenCalled();
 
-    vi.advanceTimersByTime(300);
+    await vi.advanceTimersByTimeAsync(300);
     expect(renderSpy).toHaveBeenCalledTimes(1);
   });
 
@@ -52,12 +52,12 @@ describe('usePreviewStore', () => {
       });
 
     usePreviewStore.getState().requestRender();
-    vi.advanceTimersByTime(100);
+    await vi.advanceTimersByTimeAsync(100);
     usePreviewStore.getState().requestRender();
-    vi.advanceTimersByTime(100);
+    await vi.advanceTimersByTimeAsync(100);
     usePreviewStore.getState().requestRender();
 
-    vi.advanceTimersByTime(500);
+    await vi.advanceTimersByTimeAsync(500);
 
     expect(renderSpy).toHaveBeenCalledTimes(1);
   });
@@ -119,10 +119,10 @@ describe('usePreviewStore', () => {
 
     // Start a render, then start another one before the first resolves.
     usePreviewStore.getState().requestRender();
-    vi.advanceTimersByTime(500);
+    await vi.advanceTimersByTimeAsync(500);
 
     usePreviewStore.getState().requestRender();
-    vi.advanceTimersByTime(500);
+    await vi.advanceTimersByTimeAsync(500);
 
     await vi.waitFor(() => {
       expect(usePreviewStore.getState().status).toBe('ready');
