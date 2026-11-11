@@ -18,6 +18,21 @@ from app.render.pipeline import RenderError, render_project
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
 
+#: A header value has to stay small enough for every proxy in between. When
+#: the payload is larger than this, the client is told to ask for it
+#: separately instead of receiving a broken response.
+MAX_HEADER_BYTES = 60_000
+
+
+def _header_value(payload: object) -> str:
+    """Encode a payload for a header, or return an empty string if too big."""
+    encoded = json.dumps(payload, separators=(",", ":"))
+    if len(encoded.encode("utf-8")) > MAX_HEADER_BYTES:
+        logger.warning("payload too large for a header; the client must fetch it separately")
+        return ""
+    return encoded
+
+
 app = FastAPI(
     title="YueMi Render Service",
     version="0.1.0",
@@ -37,6 +52,9 @@ app.add_middleware(
     allow_credentials=False,
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
+    # Without this the browser hides the custom headers from the app, so the
+    # preview would never see the warnings or the outline.
+    expose_headers=["X-Warnings", "X-Outline"],
 )
 
 
@@ -55,7 +73,8 @@ def render(request: RenderRequest) -> Response:
     """Render a project and return the PDF bytes.
 
     Warnings discovered during the render are attached as an `X-Warnings`
-    header so the client can surface them without a second request.
+    header, and the outline as `X-Outline`, so the client can show a preview
+    after a single request instead of rendering the document twice.
     """
     try:
         result = render_project(
@@ -71,9 +90,15 @@ def render(request: RenderRequest) -> Response:
 
     headers = {}
     if result.warnings:
-        headers["X-Warnings"] = json.dumps(
+        warnings_header = _header_value(
             [warning.model_dump() for warning in result.warnings]
         )
+        if warnings_header:
+            headers["X-Warnings"] = warnings_header
+
+    outline_header = _header_value(result.outline.model_dump())
+    if outline_header:
+        headers["X-Outline"] = outline_header
 
     return Response(content=result.pdf, media_type="application/pdf", headers=headers)
 

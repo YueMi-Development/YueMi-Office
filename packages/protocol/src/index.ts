@@ -8,7 +8,7 @@
  */
 
 /** Current version of the on-disk project format. */
-export const PROJECT_SCHEMA_VERSION = 1;
+export const PROJECT_SCHEMA_VERSION = 2;
 
 /** Page sizes WeasyPrint understands. */
 export const PAGE_SIZES = ['A0', 'A1', 'A2', 'A3', 'A4', 'A5', 'Letter', 'Legal', 'Tabloid'] as const;
@@ -48,6 +48,14 @@ export interface Project {
   content: string[];
   /** Stylesheet paths relative to the project root, in cascade order. */
   styles: string[];
+  /**
+   * Font files bundled with the project, relative to the project root.
+   *
+   * Bundling fonts keeps a document independent of what is installed on the
+   * rendering machine, which is what makes the output identical on every
+   * operating system (PRD section 8).
+   */
+  fonts?: string[];
   /** Directory holding images and other assets, relative to the project root. */
   assetsDir: string;
   page: PageConfig;
@@ -77,6 +85,13 @@ export interface ProjectFont {
   path: string;
   base64: string;
   mimeType: string;
+  /**
+   * The font family name as declared inside the font file.
+   *
+   * The client leaves this empty and the service reads it from the font's
+   * name table, so the CSS author can use the family's real name.
+   */
+  family?: string;
 }
 
 export interface RenderRequest {

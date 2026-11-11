@@ -10,16 +10,24 @@ requires-python = ">=3.10"
 dependencies = [
   "fastapi>=0.110",
   "uvicorn[standard]>=0.27",
-  "weasyprint>=58.1",
+  # WeasyPrint and pydyf are pinned exactly: they decide the bytes of the
+  # PDF, so a version bump would change every visual baseline.
+  "weasyprint==70.0",
+  "pydyf==0.13.0",
   "markdown-it-py>=3.0",
   "jinja2>=3.1",
   "pypdf>=4.0",
+  "fonttools[brotli]==4.68.0",
 ]
 
 [project.optional-dependencies]
 dev = [
   "pytest>=8.0",
   "httpx>=0.27",
+  # PyMuPDF 2.x pulls in onnxruntime, which is a heavy dependency that the
+  # visual tests do not need.
+  "pymupdf==1.24.14",
+  "numpy==2.5.4",
 ]
 
 [tool.setuptools.packages.find]

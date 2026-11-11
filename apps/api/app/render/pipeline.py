@@ -35,6 +35,9 @@ from app.models import (
     RenderOutline,
     RenderWarning,
 )
+from app.render import fonts as font_tools
+from app.render.layout import analyze_layout
+from app.render.warnings import WarningContext, collect_warnings
 
 logger = logging.getLogger(__name__)
 
@@ -86,19 +89,24 @@ def _build_markdown() -> MarkdownIt:
     return md
 
 
-def _collect_headings_in_order(markdown_texts: list[str]) -> list[tuple[int, str]]:
+def _collect_headings_in_order(
+    markdown_files: list[tuple[str, str]],
+) -> list[tuple[int, str, str]]:
     """Headings in document order, handling both ATX and setext headings.
 
     Setext headings are detected by looking at a line and the underline that
     follows it, so the scan walks the file once.
+
+    Each heading carries the file it came from, so a warning about it can
+    point the writer at the right place.
     """
-    headings: list[tuple[int, str]] = []
-    for text in markdown_texts:
+    headings: list[tuple[int, str, str]] = []
+    for path, text in markdown_files:
         lines = text.splitlines()
         for index, line in enumerate(lines):
             atx = re.match(r"^(#{1,6})\s+(.+?)\s*#*\s*$", line)
             if atx:
-                headings.append((len(atx.group(1)), atx.group(2).strip()))
+                headings.append((len(atx.group(1)), atx.group(2).strip(), path))
                 continue
             if index + 1 < len(lines):
                 underline = lines[index + 1].strip()
@@ -106,7 +114,7 @@ def _collect_headings_in_order(markdown_texts: list[str]) -> list[tuple[int, str
                     title = line.strip()
                     if title:
                         level = 1 if underline[0] == "=" else 2
-                        headings.append((level, title))
+                        headings.append((level, title, path))
     return headings
 
 
@@ -122,26 +130,13 @@ def _data_uri(base64_data: str, mime_type: str) -> str:
     return f"data:{mime_type};base64,{base64_data}"
 
 
-def _font_face_rules(fonts: list[ProjectFont]) -> list[str]:
+def _font_face_rules(fonts: list[ProjectFont]) -> tuple[list[str], list[str]]:
     """Build `@font-face` rules for the project's bundled fonts.
 
     Bundling fonts keeps output independent of what is installed on the
     rendering machine (PRD section 6).
     """
-    rules: list[str] = []
-    for font in fonts:
-        name = _SLUG_STRIP.sub("-", font.path.rsplit("/", 1)[-1].lower()).strip("-")
-        if not name:
-            continue
-        rules.append(
-            "@font-face {"
-            f" font-family: '{name}';"
-            f" src: url('{_data_uri(font.base64, font.mimeType)}');"
-            " font-weight: normal;"
-            " font-style: normal;"
-            "}"
-        )
-    return rules
+    return font_tools.font_face_rules(fonts)
 
 
 def _asset_data_uris(assets: list[ProjectAsset]) -> dict[str, str]:
@@ -183,8 +178,11 @@ def _render_html_document(
     files: list[ProjectFile],
     assets: list[ProjectAsset],
     fonts: list[ProjectFont],
-) -> str:
-    """Build the full HTML document handed to WeasyPrint."""
+) -> tuple[str, list[str]]:
+    """Build the full HTML document handed to WeasyPrint.
+
+    Returns the document and the family names the bundled fonts define.
+    """
     by_path = {file.path: file for file in files}
     md = _build_markdown()
 
@@ -209,7 +207,8 @@ def _render_html_document(
         stylesheets.append(_rewrite_asset_urls(source.text, data_uris))
 
     style_block = "\n".join(stylesheets)
-    font_block = "\n".join(_font_face_rules(fonts))
+    font_rules, font_families = _font_face_rules(fonts)
+    font_block = "\n".join(font_rules)
 
     page_rule = _page_rule(project.page)
     title = html_module.escape(project.title)
@@ -231,24 +230,10 @@ def _render_html_document(
 {body}
 </body>
 </html>
-"""
+""", font_families
 
 
-def _collect_warnings(captured: list[logging.LogRecord]) -> list[RenderWarning]:
-    """Turn captured log records into structured warnings."""
-    results: list[RenderWarning] = []
-    for record in captured:
-        message = record.getMessage()
-        code = "render.warning"
-        if "font" in message.lower():
-            code = "font.missing"
-        elif "unsupported" in message.lower():
-            code = "css.unsupported"
-        results.append(RenderWarning(code=code, message=message))
-    return results
-
-
-def _extract_outline(pdf_bytes: bytes, headings: list[tuple[int, str]]) -> RenderOutline:
+def _extract_outline(pdf_bytes: bytes, headings: list[tuple[int, str, str]]) -> RenderOutline:
     """Read bookmarks and page numbers back out of the rendered PDF.
 
     WeasyPrint creates bookmarks from the headings, so reading them back gives
@@ -295,7 +280,7 @@ def _extract_outline(pdf_bytes: bytes, headings: list[tuple[int, str]]) -> Rende
         # WeasyPrint did not produce bookmarks (for example when every heading
         # sits inside a section without a title). Fall back to the headings we
         # collected, with page 0, so the outline is still usable.
-        for level, title in headings:
+        for level, title, _path in headings:
             entries.append(
                 OutlineEntry(
                     title=title,
@@ -332,12 +317,13 @@ def render_project(
     Raises:
         RenderError: if the document cannot be laid out at all.
     """
-    html_source = _render_html_document(project, files, assets, fonts)
+    html_source, font_families = _render_html_document(project, files, assets, fonts)
 
-    markdown_texts = [
-        file.text for file in files if file.path in set(project.content)
+    content_paths = set(project.content)
+    markdown_files = [
+        (file.path, file.text) for file in files if file.path in content_paths
     ]
-    headings = _collect_headings_in_order(markdown_texts)
+    headings = _collect_headings_in_order(markdown_files)
 
     captured: list[logging.LogRecord] = []
 
@@ -355,12 +341,25 @@ def render_project(
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
             try:
-                document = HTML(string=html_source, media_type="print")
+                document = HTML(string=html_source, media_type="print").render()
                 pdf_bytes = document.write_pdf()
             except Exception as exc:
                 raise RenderError(str(exc)) from exc
 
-        render_warnings = _collect_warnings(captured)
+        render_warnings = collect_warnings(
+            WarningContext(
+                project=project,
+                files=files,
+                assets=assets,
+                font_families=font_families,
+                pdf_bytes=pdf_bytes,
+                headings=headings,
+                log_messages=[record.getMessage() for record in captured],
+            )
+        )
+        render_warnings.extend(
+            analyze_layout(document, {title: path for _, title, path in headings})
+        )
         for entry in caught:
             render_warnings.append(
                 RenderWarning(code="python.warning", message=str(entry.message))

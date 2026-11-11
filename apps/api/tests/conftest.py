@@ -50,11 +50,12 @@ def sample_request() -> dict:
     """A minimal but complete render request."""
     return {
         "project": {
-            "schemaVersion": 1,
+            "schemaVersion": 2,
             "title": "Sample Document",
             "language": "en",
             "content": ["content/intro.md"],
             "styles": ["styles/main.css"],
+            "fonts": [],
             "assetsDir": "assets",
             "page": {"size": "A4", "orientation": "portrait"},
             "pdf": {"variant": None},

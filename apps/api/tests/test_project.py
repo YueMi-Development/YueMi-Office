@@ -2,19 +2,26 @@
 
 from __future__ import annotations
 
-from app.models import Project, RenderRequest
+from app.models import PROJECT_SCHEMA_VERSION, Project, RenderRequest
 from app.render.pipeline import _slugify
 
 
 def test_project_defaults_are_filled_in():
     project = Project()
 
-    assert project.schemaVersion == 1
+    assert project.schemaVersion == PROJECT_SCHEMA_VERSION
     assert project.page.size == "A4"
     assert project.page.orientation == "portrait"
     assert project.pdf.variant is None
     assert project.content == []
     assert project.styles == []
+    assert project.fonts == []
+
+
+def test_project_keeps_the_fonts_it_lists():
+    project = Project(fonts=["fonts/inter-400.woff2"])
+
+    assert project.fonts == ["fonts/inter-400.woff2"]
 
 
 def test_project_rejects_unknown_page_size():

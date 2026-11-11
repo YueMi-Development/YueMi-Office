@@ -10,7 +10,7 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
-PROJECT_SCHEMA_VERSION = 1
+PROJECT_SCHEMA_VERSION = 2
 
 PageSize = Literal[
     "A0", "A1", "A2", "A3", "A4", "A5", "Letter", "Legal", "Tabloid"
@@ -43,6 +43,7 @@ class Project(BaseModel):
     language: str = "en"
     content: list[str] = Field(default_factory=list)
     styles: list[str] = Field(default_factory=list)
+    fonts: list[str] = Field(default_factory=list)
     assetsDir: str = "assets"
     page: PageConfig = Field(default_factory=PageConfig)
     pdf: PdfConfig = Field(default_factory=PdfConfig)
@@ -69,6 +70,7 @@ class ProjectFont(BaseModel):
     path: str
     base64: str
     mimeType: str = "font/woff2"
+    family: Optional[str] = None
 
 
 class RenderRequest(BaseModel):
