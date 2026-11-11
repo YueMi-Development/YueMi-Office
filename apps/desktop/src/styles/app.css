@@ -147,6 +147,11 @@ input:focus-visible {
   min-height: 0;
 }
 
+/* The assistant takes a column of its own, so the preview keeps its size. */
+.app-body.has-assistant {
+  grid-template-columns: 240px minmax(0, 1fr) minmax(0, 1fr) minmax(280px, 380px);
+}
+
 .app-sidebar,
 .app-editor,
 .app-preview {
@@ -542,4 +547,236 @@ input:focus-visible {
   margin: 8px 0 0;
   font-size: 12px;
   color: var(--text-muted);
+}
+
+/* Assistant */
+
+.assistant-panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  border-left: 1px solid var(--border);
+  background: var(--surface-raised);
+  font-size: 13px;
+}
+
+.assistant-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  flex: 0 0 auto;
+}
+
+.assistant-title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.assistant-header button {
+  padding: 0 6px;
+  background: transparent;
+  border: none;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.assistant-section {
+  padding: 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.assistant-subtitle {
+  margin: 0 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.assistant-script {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: inherit;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  resize: vertical;
+}
+
+.assistant-actions,
+.assistant-bulk {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.assistant-tools {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.assistant-tool {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.assistant-tool-name {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+}
+
+.assistant-tool-ok {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.assistant-tool-failed {
+  color: var(--danger);
+  font-size: 11px;
+}
+
+.assistant-edit {
+  margin-bottom: 12px;
+}
+
+.assistant-open-file {
+  margin-top: 4px;
+  padding: 2px 6px;
+  background: transparent;
+  border: none;
+  color: var(--accent);
+  font-size: 11px;
+  text-decoration: underline;
+}
+
+/* Differences */
+
+.diff-edit {
+  margin-bottom: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.diff-edit-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-raised);
+}
+
+.diff-edit-path {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1 1 auto;
+}
+
+.diff-edit-summary {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  flex: 0 0 auto;
+}
+
+.diff-edit-actions {
+  display: flex;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+
+.diff-edit-actions button,
+.diff-hunk-actions button {
+  padding: 1px 6px;
+  font-size: 11px;
+}
+
+.diff-hunk {
+  border-bottom: 1px solid var(--border);
+}
+
+.diff-hunk:last-child {
+  border-bottom: none;
+}
+
+.diff-hunk-accepted {
+  background: rgb(34 197 94 / 8%);
+}
+
+.diff-hunk-rejected {
+  opacity: 0.55;
+}
+
+.diff-hunk-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 3px 8px;
+  background: var(--surface-raised);
+}
+
+.diff-hunk-range {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.diff-hunk-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.diff-lines {
+  margin: 0;
+  padding: 4px 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  overflow-x: auto;
+}
+
+.diff-line {
+  display: flex;
+  gap: 6px;
+  padding: 0 8px;
+  white-space: pre;
+}
+
+.diff-line-marker {
+  flex: 0 0 auto;
+  width: 1ch;
+  color: var(--text-muted);
+}
+
+.diff-line-added {
+  background: rgb(34 197 94 / 14%);
+}
+
+.diff-line-removed {
+  background: rgb(220 38 38 / 14%);
 }

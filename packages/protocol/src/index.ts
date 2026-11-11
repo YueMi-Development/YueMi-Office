@@ -10,6 +10,14 @@
 /** Current version of the on-disk project format. */
 export const PROJECT_SCHEMA_VERSION = 2;
 
+export {
+  applyChanges,
+  applyEdit,
+  changesOfHunks,
+  describeEdit,
+  splitLines,
+} from './diff';
+
 /** Page sizes WeasyPrint understands. */
 export const PAGE_SIZES = ['A0', 'A1', 'A2', 'A3', 'A4', 'A5', 'Letter', 'Legal', 'Tabloid'] as const;
 
@@ -138,4 +146,125 @@ export interface HealthResponse {
 export interface RenderError {
   error: string;
   details?: string;
+}
+
+/**
+ * The tools the AI assistant can use.
+ *
+ * The assistant never writes a file itself: every change goes through
+ * `propose_edit` and is shown to the user for approval (PRD section 7).
+ */
+export const AI_TOOL_NAMES = [
+  'list_sections',
+  'read_section',
+  'search',
+  'propose_edit',
+  'set_style',
+  'render_preview',
+] as const;
+
+export type AiToolName = (typeof AI_TOOL_NAMES)[number];
+
+/** A tool the assistant can call, with the schema of its arguments. */
+export interface AiToolDescription {
+  name: AiToolName;
+  description: string;
+  /** JSON schema describing the tool's arguments. */
+  parameters: Record<string, unknown>;
+}
+
+/** One tool call, as the assistant asks for it. */
+export interface AiToolCall {
+  /** Identifier used to match the result to the call. */
+  id?: string;
+  name: AiToolName;
+  arguments?: Record<string, unknown>;
+}
+
+/** What a tool call produced. */
+export interface AiToolResult {
+  id: string;
+  name: AiToolName;
+  arguments: Record<string, unknown>;
+  ok: boolean;
+  /** The tool's answer, when it succeeded. */
+  result?: Record<string, unknown>;
+  /** Why the call failed, when it did. */
+  error?: string;
+}
+
+/** The kind of line a diff line represents. */
+export type DiffLineKind = 'context' | 'added' | 'removed';
+
+export interface DiffLine {
+  kind: DiffLineKind;
+  text: string;
+  /** Line number in the file before the change, counting from 1. */
+  oldLine?: number;
+  /** Line number in the file after the change, counting from 1. */
+  newLine?: number;
+}
+
+/**
+ * One replacement inside a file.
+ *
+ * The lines it removes are counted from the start of the file, so a change
+ * can be applied on its own. This is what makes accepting a single hunk
+ * possible.
+ */
+export interface DiffChange {
+  /** First line the change touches, counting from 1. */
+  oldStart: number;
+  /** How many lines the change removes. */
+  oldCount: number;
+  /** The lines the change puts in their place. */
+  newLines: string[];
+}
+
+/**
+ * A run of changes shown together, with the lines around them for context.
+ */
+export interface DiffHunk {
+  /** First line of the hunk in the file before the change, counting from 1. */
+  oldStart: number;
+  /** How many lines of the original file the hunk covers. */
+  oldCount: number;
+  /** First line of the hunk in the file after the change, counting from 1. */
+  newStart: number;
+  /** How many lines of the changed file the hunk covers. */
+  newCount: number;
+  lines: DiffLine[];
+  /** The changes the hunk holds, which are what accepting it applies. */
+  changes: DiffChange[];
+}
+
+/**
+ * A change the assistant proposes to make to one file.
+ */
+export interface ProposedEdit {
+  id: string;
+  /** Project-relative path of the file being changed. */
+  path: string;
+  kind: 'replace' | 'create';
+  /** The file's contents before the change. */
+  oldText: string;
+  /** The file's contents after the change. */
+  newText: string;
+  hunks: DiffHunk[];
+}
+
+/** The request the desktop app sends to run a session of tool calls. */
+export interface AiSessionRequest {
+  project: Project;
+  files: ProjectFile[];
+  assets: ProjectAsset[];
+  fonts: ProjectFont[];
+  calls: AiToolCall[];
+}
+
+/** The result of a session: what each call did, and what it proposed. */
+export interface AiSession {
+  id: string;
+  calls: AiToolResult[];
+  edits: ProposedEdit[];
 }

@@ -150,4 +150,52 @@ describe('useProjectStore', () => {
 
     expect(useProjectStore.getState().files['content/a.md']).toBe('hello');
   });
+
+  it('puts several changed files in at once', () => {
+    useProjectStore.getState().applyFileEdits({
+      'content/a.md': '# A',
+      'styles/main.css': 'body {}',
+    });
+
+    const state = useProjectStore.getState();
+    expect(state.files['content/a.md']).toBe('# A');
+    expect(state.files['styles/main.css']).toBe('body {}');
+    expect(state.dirty).toBe(true);
+  });
+
+  it('makes several changed files one undoable action', () => {
+    useProjectStore.getState().applyFileEdits({ 'content/a.md': '# A' });
+    useProjectStore.getState().applyFileEdits({ 'content/b.md': '# B' });
+
+    useProjectStore.getState().undo();
+
+    expect(useProjectStore.getState().files['content/b.md']).toBeUndefined();
+    expect(useProjectStore.getState().files['content/a.md']).toBe('# A');
+  });
+
+  it('adds a new content file to the document order', () => {
+    useProjectStore.getState().applyFileEdits({ 'content/new.md': '# New' });
+
+    expect(useProjectStore.getState().project.content).toContain('content/new.md');
+  });
+
+  it('adds a new stylesheet to the cascade', () => {
+    useProjectStore.getState().applyFileEdits({ 'styles/extra.css': 'body {}' });
+
+    expect(useProjectStore.getState().project.styles).toContain('styles/extra.css');
+  });
+
+  it('does not put a file that is already there in the document twice', () => {
+    useProjectStore.getState().addContentFile('content/a.md', '# A');
+    useProjectStore.getState().applyFileEdits({ 'content/a.md': '# Changed' });
+
+    expect(useProjectStore.getState().project.content).toEqual(['content/a.md']);
+  });
+
+  it('ignores a change that changes nothing', () => {
+    useProjectStore.getState().applyFileEdits({});
+
+    expect(useProjectStore.getState().dirty).toBe(false);
+    expect(useProjectStore.getState().undoStack).toHaveLength(0);
+  });
 });

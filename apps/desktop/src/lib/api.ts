@@ -1,4 +1,8 @@
 import type {
+  AiSession,
+  AiSessionRequest,
+  AiToolCall,
+  AiToolDescription,
   HealthResponse,
   OutlineEntry,
   RenderOutline,
@@ -158,6 +162,61 @@ export async function checkHealth(): Promise<HealthResponse> {
     throw await readError(response);
   }
   return (await response.json()) as HealthResponse;
+}
+
+/**
+ * Lists the tools the assistant can use.
+ *
+ * The app sends this to the model provider, so the assistant is told what
+ * it may do rather than what the user typed.
+ */
+export async function listAiTools(): Promise<AiToolDescription[]> {
+  const response = await fetch(`${baseUrl}/v1/ai/tools`);
+  if (!response.ok) {
+    throw await readError(response);
+  }
+  return (await response.json()) as AiToolDescription[];
+}
+
+/**
+ * Runs a session of tool calls against a project.
+ *
+ * The calls are run on the service, which has the project's files but no
+ * access to the user's disk. The changes the calls propose come back for
+ * the user to accept or reject.
+ */
+export async function runAiSession(
+  request: AiSessionRequest,
+): Promise<AiSession> {
+  const response = await fetch(`${baseUrl}/v1/ai/session`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+
+  if (!response.ok) {
+    throw await readError(response);
+  }
+  return (await response.json()) as AiSession;
+}
+
+/**
+ * Builds the request that runs a session against the current project.
+ */
+export function buildAiSessionRequest(
+  project: RenderRequest['project'],
+  files: Record<string, string>,
+  assets: RenderRequest['assets'],
+  fonts: RenderRequest['fonts'],
+  calls: AiToolCall[],
+): AiSessionRequest {
+  return {
+    project,
+    files: Object.entries(files).map(([path, text]) => ({ path, text })),
+    assets,
+    fonts,
+    calls,
+  };
 }
 
 /**

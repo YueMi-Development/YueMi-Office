@@ -12,7 +12,16 @@ from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
 from weasyprint import __version__ as weasyprint_version
 
-from app.models import HealthResponse, RenderOutline, RenderRequest
+from app.models import (
+    AiSessionRequest,
+    AiSessionResponse,
+    AiToolDescriptionModel,
+    HealthResponse,
+    RenderOutline,
+    RenderRequest,
+)
+from app.ai.session import ToolCall, run_session
+from app.ai.tools import TOOLS
 from app.render.pipeline import RenderError, render_project
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
@@ -101,6 +110,44 @@ def render(request: RenderRequest) -> Response:
         headers["X-Outline"] = outline_header
 
     return Response(content=result.pdf, media_type="application/pdf", headers=headers)
+
+
+@app.get("/v1/ai/tools", response_model=list[AiToolDescriptionModel])
+def ai_tools() -> list[AiToolDescriptionModel]:
+    """List the tools the assistant can use.
+
+    The app sends this to the model provider, so the assistant is told what
+    it may do rather than what the user typed.
+    """
+    return [
+        AiToolDescriptionModel(
+            name=name,
+            description=tool["description"],
+            parameters=tool["parameters"],
+        )
+        for name, tool in TOOLS.items()
+    ]
+
+
+@app.post("/v1/ai/session", response_model=AiSessionResponse)
+def ai_session(request: AiSessionRequest) -> AiSessionResponse:
+    """Run a session of tool calls against a project.
+
+    The calls are run in order and the changes they propose are returned for
+    the user to approve. Nothing is written to disk here: the assistant
+    proposes and the user decides (PRD section 7).
+    """
+    result = run_session(
+        request.project,
+        request.files,
+        request.assets,
+        request.fonts,
+        [
+            ToolCall(id=call.id, name=call.name, arguments=call.arguments)
+            for call in request.calls
+        ],
+    )
+    return AiSessionResponse.model_validate(result)
 
 
 @app.post("/v1/render/outline", response_model=RenderOutline)

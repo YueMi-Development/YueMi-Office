@@ -37,6 +37,13 @@ export interface ProjectState {
   removeContentFile: (path: string) => void;
   reorderContent: (from: number, to: number) => void;
   setTitle: (title: string) => void;
+  /**
+   * Replaces the contents of several files at once.
+   *
+   * One assistant session is one undoable action, so every file it changed
+   * is put back with a single undo step (PRD section 6).
+   */
+  applyFileEdits: (changes: Record<string, string>) => void;
   markSaved: () => void;
   undo: () => void;
   redo: () => void;
@@ -220,6 +227,46 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     set({
       project: { ...state.project, title },
       dirty: true,
+    });
+  },
+
+  applyFileEdits: (changes) => {
+    const state = get();
+    const entries = Object.entries(changes);
+    if (entries.length === 0) {
+      return;
+    }
+
+    const files = { ...state.files };
+    const content = [...state.project.content];
+    const styles = [...state.project.styles];
+
+    for (const [path, text] of entries) {
+      const normalized = normalizePath(path);
+      files[normalized] = text;
+
+      const isNew = !(normalized in state.files);
+      if (!isNew) {
+        continue;
+      }
+
+      // A new Markdown file is part of the document and a new stylesheet is
+      // part of the cascade, so both are put in their place. Without this the
+      // file would exist but never be rendered.
+      const lower = normalized.toLowerCase();
+      if (lower.endsWith('.md') && !content.includes(normalized)) {
+        content.push(normalized);
+      } else if (lower.endsWith('.css') && !styles.includes(normalized)) {
+        styles.push(normalized);
+      }
+    }
+
+    pendingSnapshot = null;
+    set({
+      project: { ...state.project, content, styles },
+      files,
+      dirty: true,
+      ...pushUndo(state, snapshotOf(state)),
     });
   },
 

@@ -4,6 +4,7 @@ import { FileTree } from './features/files/FileTree';
 import { MarkdownEditor } from './features/editor/MarkdownEditor';
 import { Outline } from './features/outline/Outline';
 import { PdfPreview } from './features/preview/PdfPreview';
+import { AssistantPanel } from './features/assistant/AssistantPanel';
 import { SettingsDialog } from './features/settings/SettingsDialog';
 import { TemplatePicker } from './features/templates/TemplatePicker';
 import { createProjectFromTemplate } from './features/templates/createFromTemplate';
@@ -21,6 +22,7 @@ export function App() {
   const [projectIssues, setProjectIssues] = useState<string | null>(null);
   const [showTemplates, setShowTemplates] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showAssistant, setShowAssistant] = useState(false);
 
   const {
     project,
@@ -248,6 +250,12 @@ export function App() {
           >
             Settings
           </button>
+          <button
+            type="button"
+            onClick={() => setShowAssistant((shown) => !shown)}
+          >
+            Assistant
+          </button>
         </div>
       </header>
 
@@ -257,7 +265,7 @@ export function App() {
         </div>
       )}
 
-      <main className="app-body">
+      <main className={`app-body${showAssistant ? ' has-assistant' : ''}`}>
         <aside className="app-sidebar">
           <section className="sidebar-section">
             <h2 className="sidebar-heading">Files</h2>
@@ -298,6 +306,10 @@ export function App() {
           <PdfPreview pdf={pdf} status={status} error={error} />
           <WarningsPanel warnings={warnings} onOpenFile={handleOpenWarningFile} />
         </section>
+
+        {showAssistant && (
+          <AssistantPanel onClose={() => setShowAssistant(false)} />
+        )}
       </main>
 
       {showTemplates && (

@@ -70,6 +70,10 @@ COPY apps/api/scripts ./scripts
 COPY apps/desktop/src/features/templates /repo/apps/desktop/src/features/templates
 COPY apps/desktop/public/fonts /repo/apps/desktop/public/fonts
 
+# The contract the service and the app share. The test that keeps the
+# fixture up to date reads it from here.
+COPY packages/protocol/src/fixtures /repo/packages/protocol/src/fixtures
+
 # The dev extra brings in the rasterizer the visual tests compare with.
 RUN pip install --no-cache-dir ".[dev]"
 
