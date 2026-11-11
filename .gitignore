@@ -23,3 +23,6 @@ desktop.ini
 *.log
 npm-debug.log*
 bun-debug.log*
+
+# Scratch files used while working on something
+.tmp-*

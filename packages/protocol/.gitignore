@@ -7,3 +7,6 @@ build/
 
 # TypeScript incremental build info
 *.tsbuildinfo
+
+# Test output
+coverage/

@@ -5,9 +5,10 @@ with CSS. An AI assistant will work on the project the way a coding agent
 works on a repository: it reads the source, proposes edits as reviewable
 diffs, and checks the rendered result.
 
-This repository is at **M1 (Foundations)**: the project format, the editor,
-the render pipeline, the PDF preview, and export. The AI assistant lands in
-later milestones.
+This repository is at **M2 (Layout tooling)**: the project format, the editor,
+the render pipeline, the PDF preview, export, templates, bundled fonts, render
+warnings and visual regression tests. The AI assistant lands in later
+milestones.
 
 See [docs/PRD-markdown-document-studio.md](docs/PRD-markdown-document-studio.md)
 for the full product requirements.
@@ -28,7 +29,8 @@ my-document/
 ├── project.json     the manifest
 ├── content/         Markdown files, in document order
 ├── styles/          CSS files, in cascade order
-└── assets/          images and fonts
+├── assets/          images
+└── fonts/           font files the document bundles
 ```
 
 `project.json` lists content and styles as explicit ordered arrays rather
@@ -68,35 +70,54 @@ bun run dev:desktop
 ```
 
 The app talks to the render service at `http://127.0.0.1:8000` by default.
-Change it with `setApiBaseUrl` in `apps/desktop/src/lib/api.ts`.
+Change the address in the app's Settings dialog.
 
 **With Docker** (Linux and macOS)
+
+The render service image pins the WeasyPrint version and the system libraries
+the visual baselines were produced with:
 
 ```bash
 cd apps/api
 docker compose up --build
 ```
 
+Or build the image directly:
+
+```bash
+docker build -f apps/api/Dockerfile --target runtime -t yuemi-api .
+docker run --rm -p 8000:8000 yuemi-api
+```
+
 ## Tests
 
 ```bash
-cd apps/api && pytest                    # 22 tests
-cd apps/desktop && bun run test          # 39 tests
-cd apps/desktop/src-tauri && cargo test  # 7 tests
+cd apps/api && pytest                    # 58 tests
+bun run test                             # 61 tests
+cd apps/desktop/src-tauri && cargo test  # 14 tests
+```
+
+The visual tests compare the rendered pages of the reference document against
+the committed baselines. To regenerate them after a change to the layout
+engine that is meant to alter the output:
+
+```bash
+cd apps/api && python scripts/render_reference.py --update
 ```
 
 ## CI
 
 GitHub Actions runs the backend tests, the frontend tests, a Rust test pass,
-and a build on Windows, macOS, and Linux. See
-[.github/workflows/ci.yml](.github/workflows/ci.yml).
+a build on Windows, macOS and Linux, and a visual check that renders the
+reference document on all three operating systems and compares the pages.
+See [.github/workflows/ci.yml](.github/workflows/ci.yml).
 
 ## Status
 
 | Milestone | Contents | State |
 |---|---|---|
 | M1 | Project format, editor, render pipeline, preview, export | Done |
-| M2 | Templates, font bundling, render warnings, visual regression tests | Planned |
+| M2 | Templates, font bundling, render warnings, visual regression tests | Done |
 | M3 | AI tool layer, diff UI, snapshots | Planned |
 | M4 | AI chat, streaming, render feedback loop | Planned |
 | M5 | Packaging, signing, auto-update | Planned |

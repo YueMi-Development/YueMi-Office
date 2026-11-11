@@ -12,11 +12,36 @@ concurrency:
 
 env:
   BUN_VERSION: "1.3.14"
+  # The Python version every job uses. It is pinned so the render stack is
+  # the same everywhere.
+  PYTHON_VERSION: "3.12"
 
 jobs:
   backend:
     name: Backend tests
     runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # The tests run inside the render image, because the visual baselines
+      # were produced by exactly this stack: the same Debian release, the
+      # same Pango, the same WeasyPrint. Running them against the runner's
+      # own libraries would compare the baselines with a slightly different
+      # engine, which is a difference in the environment rather than in the
+      # code.
+      - name: Build the test image
+        run: docker build -f apps/api/Dockerfile --target test -t yuemi-api:test .
+
+      - name: Run the tests
+        run: docker run --rm yuemi-api:test
+
+  visual:
+    name: Visual check on ${{ matrix.platform }}
+    runs-on: ${{ matrix.platform }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [ubuntu-latest, windows-latest, macos-latest]
     defaults:
       run:
         working-directory: apps/api
@@ -26,24 +51,64 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      # Pango is the layout engine behind WeasyPrint. It has to be installed
+      # the way each platform's documentation describes, and the Python
+      # process has to be told where its libraries live.
+      - name: Install Pango on Linux
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz0b \
+            libharfbuzz-subset0 libcairo2 libgdk-pixbuf-2.0-0 libffi8 \
+            shared-mime-info
+
+      - name: Install Pango on macOS
+        if: runner.os == 'macOS'
+        run: brew install pango || brew upgrade pango
+
+      - name: Install Pango on Windows
+        if: runner.os == 'Windows'
+        id: msys2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: mingw-w64-ucrt-x86_64-pango
+
+      # WeasyPrint loads Pango through CFFI, which needs to be told where the
+      # libraries are on the platforms that do not have a standard search
+      # path for them.
+      - name: Point the loader at the libraries on Windows
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          echo "WEASYPRINT_DLL_DIRECTORIES=${{ steps.msys2.outputs.msys2-location }}\\ucrt64\\bin" >> "$GITHUB_ENV"
+
+      - name: Point the loader at the libraries on macOS
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          echo "DYLD_FALLBACK_LIBRARY_PATH=/opt/homebrew/lib:/usr/local/lib" >> "$GITHUB_ENV"
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+          pip install ".[dev]"
 
-      # WeasyPrint needs Pango and Cairo. They are present on the runner, but
-      # the GTK runtime has to be pointed at explicitly on some images.
-      - name: Install WeasyPrint system dependencies
+      # The pages are compared, not the PDF bytes. The bytes differ between
+      # operating systems because Pango writes its own metadata into the
+      # file, while the rendered pages are the same document.
+      - name: Render the reference document
+        run: python scripts/render_pages.py tests/fixtures/reference .tmp-pages
+
+      - name: Compare the pages with the baselines
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz0b libcairo2 \
-            libgdk-pixbuf-2.0-0 libffi-dev shared-mime-info
-
-      - name: Run tests
-        run: pytest -v
+          python scripts/compare_pages.py \
+            tests/visual/baseline/reference .tmp-pages \
+            --tolerance 0.002
 
   frontend:
     name: Frontend tests
@@ -106,7 +171,7 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Install Linux dependencies
-        if: matrix.platform == 'ubuntu-latest'
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
@@ -140,14 +205,11 @@ jobs:
   render-image:
     name: Render service image
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: apps/api
     steps:
       - uses: actions/checkout@v7
 
       - name: Build the image
-        run: docker build -t yuemi-api:ci .
+        run: docker build -f apps/api/Dockerfile --target runtime -t yuemi-api:ci .
 
       - name: Smoke test the render service
         run: |

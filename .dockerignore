@@ -1,0 +1,33 @@
+# The Docker build context is the repository root, so the files that are not
+# needed inside the image are left out of it.
+
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+target/
+*.tsbuildinfo
+
+# Python caches
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Version control and editor files
+.git/
+.github/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Test and coverage output
+coverage/
+.tmp-pages/

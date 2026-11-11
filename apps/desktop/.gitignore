@@ -9,3 +9,8 @@ dist/
 
 # Test output
 coverage/
+
+# Local environment
+.env
+.env.*
+!.env.example

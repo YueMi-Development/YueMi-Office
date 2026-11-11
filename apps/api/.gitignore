@@ -22,6 +22,9 @@ dist/
 .coverage.*
 htmlcov/
 
+# Pages rendered while checking a change
+.tmp-pages/
+
 # Local environment
 .env
 .env.*

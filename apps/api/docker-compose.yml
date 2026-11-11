@@ -1,7 +1,11 @@
 services:
   api:
     build:
-      context: .
+      # The build context is the repository root, because the image keeps the
+      # repository layout intact.
+      context: ../..
+      dockerfile: apps/api/Dockerfile
+      target: runtime
     ports:
       - "8000:8000"
     environment:

@@ -1,21 +1,76 @@
-# The WeasyPrint base image already carries Pango, Cairo and the fontconfig
-# setup that WeasyPrint needs. We layer FastAPI and uvicorn on top.
+# The render service image. It is the deployed artifact for v1, so it pins the
+# same WeasyPrint version the visual baselines were generated with.
 #
-# The upstream image lives on ghcr.io; the Docker Hub repository of the same
-# name does not exist.
-FROM ghcr.io/weasyprint/weasyprint:58.1
+# The system libraries WeasyPrint needs (Pango, Cairo, HarfBuzz and
+# fontconfig) come from Debian rather than the upstream image, because the
+# upstream image is several WeasyPrint versions behind and cannot be pinned
+# to the version the baselines were made with.
+#
+# The build context is the repository root, not this folder, because the
+# visual tests render the reference project and the templates that live
+# outside apps/api:
+#
+#   docker build -f apps/api/Dockerfile --target runtime -t yuemi-api .
+#   docker build -f apps/api/Dockerfile --target test -t yuemi-api:test .
+#
+# The image has two targets:
+#
+#   runtime — the service itself.
+#   test    — the same service plus the tools the visual tests need. The
+#             visual tests run inside this image on every operating system,
+#             so the pages they compare were produced by one pinned stack
+#             rather than by whatever the runner happened to have.
+FROM debian:trixie-slim AS base
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    PIP_NO_CACHE_DIR=1
+    PIP_NO_CACHE_DIR=1 \
+    PATH=/opt/venv/bin:$PATH
 
-WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      libpango-1.0-0 \
+      libpangoft2-1.0-0 \
+      libharfbuzz0b \
+      libharfbuzz-subset0 \
+      libcairo2 \
+      libgdk-pixbuf-2.0-0 \
+      libffi8 \
+      shared-mime-info \
+      python3 \
+      python3-venv \
+    && rm -rf /var/lib/apt/lists/*
 
-COPY pyproject.toml ./
-COPY app ./app
+RUN python3 -m venv /opt/venv
 
-RUN pip install --no-cache-dir . fastapi "uvicorn[standard]"
+# The repository layout is kept intact below the work directory, because the
+# tests find the reference project and the templates by walking up from their
+# own location.
+WORKDIR /repo/apps/api
+
+FROM base AS runtime
+
+COPY apps/api/pyproject.toml ./
+COPY apps/api/app ./app
+
+RUN pip install --no-cache-dir .
 
 EXPOSE 8000
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+
+FROM base AS test
+
+COPY apps/api/pyproject.toml ./
+COPY apps/api/app ./app
+COPY apps/api/tests ./tests
+COPY apps/api/scripts ./scripts
+
+# The templates and the fonts the app ships, which the template tests
+# render.
+COPY apps/desktop/src/features/templates /repo/apps/desktop/src/features/templates
+COPY apps/desktop/public/fonts /repo/apps/desktop/public/fonts
+
+# The dev extra brings in the rasterizer the visual tests compare with.
+RUN pip install --no-cache-dir ".[dev]"
+
+CMD ["python", "-m", "pytest", "-v"]

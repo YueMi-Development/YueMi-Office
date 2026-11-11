@@ -4,3 +4,8 @@
 # Generated Tauri schemas and context
 /gen/schemas
 /gen/context
+
+# Local environment
+.env
+.env.*
+!.env.example
