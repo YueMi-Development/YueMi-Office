@@ -81,11 +81,6 @@ def _content_boxes(page) -> list:
     ]
 
 
-def _is_inside(box, ancestor) -> bool:
-    """Whether a box sits inside another box."""
-    return any(child is ancestor for child in box.descendants())
-
-
 def _box_text(box) -> str:
     """The text of a box, on one line.
 
