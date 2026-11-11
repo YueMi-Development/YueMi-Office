@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="240" height="120" viewBox="0 0 240 120">
+  <rect width="240" height="120" fill="#f8fafc" />
+  <rect x="20" y="24" width="80" height="72" rx="4" fill="#dbeafe" stroke="#2563eb" />
+  <rect x="140" y="24" width="80" height="72" rx="4" fill="#e2e8f0" stroke="#94a3b8" />
+  <path d="M100 60 H140" stroke="#475569" stroke-width="2" />
+  <path d="M134 54 L140 60 L134 66" fill="none" stroke="#475569" stroke-width="2" />
+  <text x="60" y="66" font-family="Inter" font-size="14" text-anchor="middle" fill="#1e3a8a">Markdown</text>
+  <text x="180" y="66" font-family="Inter" font-size="14" text-anchor="middle" fill="#334155">PDF</text>
+</svg>
