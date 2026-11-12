@@ -453,15 +453,19 @@ pub fn create_project(
 
 // The command wrappers the webview calls. The logic lives in the plain
 // functions above so it can be tested without a Tauri runtime.
+//
+// Each command is renamed to the name the frontend invokes it by. Tauri
+// would otherwise register the function's own name, and the webview would
+// get "command not found" for every call.
 
 /// Reads a project folder: its `project.json` and its text files.
-#[tauri::command]
+#[tauri::command(rename = "open_project")]
 pub fn command_open_project(root_path: String) -> Result<OpenProjectResult, String> {
     open_project(root_path)
 }
 
 /// Writes a project's files back to disk.
-#[tauri::command]
+#[tauri::command(rename = "save_project")]
 pub fn command_save_project(
     root_path: String,
     project: serde_json::Value,
@@ -471,7 +475,7 @@ pub fn command_save_project(
 }
 
 /// Writes one file inside the project.
-#[tauri::command]
+#[tauri::command(rename = "write_project_file")]
 pub fn command_write_project_file(
     root_path: String,
     path: String,
@@ -481,26 +485,26 @@ pub fn command_write_project_file(
 }
 
 /// Writes a text file the user chose in a save dialog.
-#[tauri::command]
+#[tauri::command(rename = "export_text_file")]
 pub fn command_export_text_file(path: String, contents: String) -> Result<(), String> {
     export_text_file(path, contents)
 }
 
 /// Writes a binary file the user chose in a save dialog.
-#[tauri::command]
+#[tauri::command(rename = "export_binary_file")]
 pub fn command_export_binary_file(path: String, contents: Vec<u8>) -> Result<(), String> {
     export_binary_file(path, contents)
 }
 
 /// Reads a file as bytes, used to load assets into a render request.
-#[tauri::command]
+#[tauri::command(rename = "read_binary_file")]
 pub fn command_read_binary_file(root_path: String, path: String) -> Result<Vec<u8>, String> {
     read_binary_file(root_path, path)
 }
 
 /// Collects the project's fonts and assets, ready to be inlined in a render
 /// request.
-#[tauri::command]
+#[tauri::command(rename = "collect_project_binaries")]
 pub fn command_collect_project_binaries(
     root_path: String,
     font_paths: Vec<String>,
@@ -510,7 +514,7 @@ pub fn command_collect_project_binaries(
 }
 
 /// Creates a new project folder from a set of files.
-#[tauri::command]
+#[tauri::command(rename = "create_project")]
 pub fn command_create_project(
     root_path: String,
     project: serde_json::Value,
