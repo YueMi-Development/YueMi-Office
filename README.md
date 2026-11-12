@@ -1,14 +1,15 @@
-# yuemi
+# YueMi Office
 
 A desktop app for writing and laying out print-ready documents in Markdown
 with CSS. An AI assistant will work on the project the way a coding agent
 works on a repository: it reads the source, proposes edits as reviewable
 diffs, and checks the rendered result.
 
-This repository is at **M2 (Layout tooling)**: the project format, the editor,
-the render pipeline, the PDF preview, export, templates, bundled fonts, render
-warnings and visual regression tests. The AI assistant lands in later
-milestones.
+This repository is at **M3 (AI tools without chat)**: the project format, the
+editor, the render pipeline, the PDF preview, export, templates, bundled
+fonts, render warnings, visual regression tests, and the assistant's tool
+layer with a reviewable diff for every change it proposes. The chat
+interface lands in M4.
 
 See [docs/PRD-markdown-document-studio.md](docs/PRD-markdown-document-studio.md)
 for the full product requirements.
@@ -92,8 +93,8 @@ docker run --rm -p 8000:8000 yuemi-api
 ## Tests
 
 ```bash
-cd apps/api && pytest                    # 58 tests
-bun run test                             # 61 tests
+cd apps/api && pytest                    # 119 tests
+bun run test                             # 132 tests
 cd apps/desktop/src-tauri && cargo test  # 14 tests
 ```
 
@@ -118,6 +119,6 @@ See [.github/workflows/ci.yml](.github/workflows/ci.yml).
 |---|---|---|
 | M1 | Project format, editor, render pipeline, preview, export | Done |
 | M2 | Templates, font bundling, render warnings, visual regression tests | Done |
-| M3 | AI tool layer, diff UI, snapshots | Planned |
+| M3 | AI tool layer, diff UI, snapshots | Done |
 | M4 | AI chat, streaming, render feedback loop | Planned |
 | M5 | Packaging, signing, auto-update | Planned |
