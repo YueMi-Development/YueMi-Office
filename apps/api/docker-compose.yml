@@ -7,7 +7,7 @@ services:
       dockerfile: apps/api/Dockerfile
       target: runtime
     ports:
-      - "8000:8000"
+      - "32100:32100"
     environment:
       - PYTHONUNBUFFERED=1
     restart: unless-stopped

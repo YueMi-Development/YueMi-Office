@@ -55,7 +55,7 @@ cd apps/api
 python -m venv .venv
 . .venv/bin/activate            # .venv\Scripts\activate on Windows
 pip install -e ".[dev]"
-uvicorn app.main:app --port 8000
+uvicorn app.main:app --port 32100
 ```
 
 WeasyPrint needs Pango and Cairo. On Linux, install the packages listed in
@@ -70,8 +70,10 @@ bun install
 bun run dev:desktop
 ```
 
-The app talks to the render service at `http://127.0.0.1:8000` by default.
-Change the address in the app's Settings dialog.
+The app talks to the render service at `http://127.0.0.1:32100` by default.
+Change the address in the app's Settings dialog. The port is named once in
+`packages/protocol/src/index.ts` and once in `apps/api/app/service.py`; a test
+keeps the two in step.
 
 **With Docker** (Linux and macOS)
 
@@ -87,14 +89,14 @@ Or build the image directly:
 
 ```bash
 docker build -f apps/api/Dockerfile --target runtime -t yuemi-api .
-docker run --rm -p 8000:8000 yuemi-api
+docker run --rm -p 32100:32100 yuemi-api
 ```
 
 ## Tests
 
 ```bash
-cd apps/api && pytest                    # 119 tests
-bun run test                             # 132 tests
+cd apps/api && pytest                    # 124 tests
+bun run test                             # 140 tests
 cd apps/desktop/src-tauri && cargo test  # 14 tests
 ```
 

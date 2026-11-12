@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 
 import { checkHealth } from '../../lib/api';
-import { validateServiceUrl } from '../../lib/serviceUrl';
+import { DEFAULT_SERVICE_URL, validateServiceUrl } from '../../lib/serviceUrl';
 import { useSettingsStore } from '../../state/settingsStore';
 
 interface SettingsDialogProps {
@@ -86,7 +86,7 @@ export function SettingsDialog({ onClose }: SettingsDialogProps) {
             value={draft}
             spellCheck={false}
             onChange={(event) => setDraft(event.target.value)}
-            placeholder="http://127.0.0.1:8000"
+            placeholder={DEFAULT_SERVICE_URL}
           />
         </label>
 

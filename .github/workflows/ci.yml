@@ -208,14 +208,22 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "${{ env.PYTHON_VERSION }}"
+
       - name: Build the image
         run: docker build -f apps/api/Dockerfile --target runtime -t yuemi-api:ci .
 
       - name: Smoke test the render service
         run: |
-          docker run -d --name yuemi-api -p 8000:8000 yuemi-api:ci
+          # The port is read from the service's own code, so this job cannot
+          # test a port the service does not listen on.
+          port=$(python -c "import sys; sys.path.insert(0, 'apps/api'); from app.service import SERVICE_PORT; print(SERVICE_PORT)")
+          docker run -d --name yuemi-api -p "$port:$port" yuemi-api:ci
           for attempt in $(seq 1 30); do
-            if curl -fsS http://127.0.0.1:8000/v1/health > /dev/null; then
+            if curl -fsS "http://127.0.0.1:$port/v1/health" > /dev/null; then
               echo "Service is up."
               break
             fi
@@ -226,5 +234,5 @@ jobs:
             fi
             sleep 2
           done
-          curl -fsS http://127.0.0.1:8000/v1/health
+          curl -fsS "http://127.0.0.1:$port/v1/health"
           echo

@@ -54,9 +54,11 @@ COPY apps/api/app ./app
 
 RUN pip install --no-cache-dir .
 
-EXPOSE 8000
+# The port is read from the service's own code, so the image cannot end up
+# listening on a different port from the one the app expects.
+EXPOSE 32100
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port $(python -c 'from app.service import SERVICE_PORT; print(SERVICE_PORT)')"]
 
 FROM base AS test
 
@@ -71,8 +73,9 @@ COPY apps/desktop/src/features/templates /repo/apps/desktop/src/features/templat
 COPY apps/desktop/public/fonts /repo/apps/desktop/public/fonts
 
 # The contract the service and the app share. The test that keeps the
-# fixture up to date reads it from here.
-COPY packages/protocol/src/fixtures /repo/packages/protocol/src/fixtures
+# fixture up to date reads it from here, and the test that checks the two
+# sides agree about the service's port reads the contract itself.
+COPY packages/protocol/src /repo/packages/protocol/src
 
 # The dev extra brings in the rasterizer the visual tests compare with.
 RUN pip install --no-cache-dir ".[dev]"

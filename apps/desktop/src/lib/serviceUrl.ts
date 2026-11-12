@@ -1,3 +1,5 @@
+import { SERVICE_PORT } from '@yuemi/protocol';
+
 /**
  * The address of the render service.
  *
@@ -10,9 +12,10 @@
  * Where the render service lives by default.
  *
  * A local service is what the development setup uses; a packaged app reads
- * the address from its settings.
+ * the address from its settings. The port comes from the shared contract, so
+ * the app and the service cannot disagree about it.
  */
-export const DEFAULT_SERVICE_URL = 'http://127.0.0.1:8000';
+export const DEFAULT_SERVICE_URL = `http://127.0.0.1:${SERVICE_PORT}`;
 
 /**
  * Turns what the user typed into a usable address.

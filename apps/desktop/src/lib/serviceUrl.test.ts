@@ -1,16 +1,18 @@
 import { describe, expect, it } from 'vitest';
 
+import { SERVICE_PORT } from '@yuemi/protocol';
+
 import {
   DEFAULT_SERVICE_URL,
   normalizeServiceUrl,
   validateServiceUrl,
 } from '../lib/serviceUrl';
 
+const URL = `http://127.0.0.1:${SERVICE_PORT}`;
+
 describe('normalizeServiceUrl', () => {
   it('leaves a full address alone', () => {
-    expect(normalizeServiceUrl('http://127.0.0.1:8000')).toBe(
-      'http://127.0.0.1:8000',
-    );
+    expect(normalizeServiceUrl(URL)).toBe(URL);
   });
 
   it('gives a bare host a scheme', () => {
@@ -28,7 +30,7 @@ describe('normalizeServiceUrl', () => {
 
 describe('validateServiceUrl', () => {
   it('accepts an http address', () => {
-    expect(validateServiceUrl('http://127.0.0.1:8000')).toBeNull();
+    expect(validateServiceUrl(URL)).toBeNull();
   });
 
   it('accepts an https address', () => {
