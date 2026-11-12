@@ -56,6 +56,11 @@ app.add_middleware(
         "http://localhost:1420",
         "http://127.0.0.1:1420",
         "tauri://localhost",
+        # The packaged app's own origin. macOS serves the app over the
+        # `tauri://` scheme and the other platforms over `http://tauri.localhost`,
+        # or `https://tauri.localhost` when the https scheme is turned on, so
+        # all of them have to be allowed or the app cannot reach the service.
+        "http://tauri.localhost",
         "https://tauri.localhost",
     ],
     allow_credentials=False,
