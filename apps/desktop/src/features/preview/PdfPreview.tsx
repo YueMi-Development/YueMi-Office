@@ -95,7 +95,10 @@ export function PdfPreview({ pdf, status, error }: PdfPreviewProps) {
 
       try {
         const pdfjs = await loadPdfJs();
-        const task = pdfjs.getDocument({ data: pdf });
+        // pdf.js hands the buffer to its worker, which detaches it, so it is
+        // given a copy. Without this the PDF in the store would be left as an
+        // empty buffer and exporting it would write a file of no bytes.
+        const task = pdfjs.getDocument({ data: pdf.slice() });
         const loaded = (await task.promise) as unknown as PdfDocument;
         if (cancelled) {
           loaded.destroy();
