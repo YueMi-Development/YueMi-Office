@@ -16,7 +16,10 @@ set -euo pipefail
 tag="${1:-}"
 
 if [[ ! "$tag" =~ ^v([0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?)$ ]]; then
-  echo "::error::The tag $tag does not name a version. A tag is a v and three numbers, an optional pre-release identifier and optional build metadata: v1.0.0, v1.0.0-beta."
+  # The message goes to the error stream, because the standard output
+  # carries the version. A script that reads the version with a command
+  # substitution would otherwise swallow the refusal.
+  echo "::error::The tag $tag does not name a version. A tag is a v and three numbers, an optional pre-release identifier and optional build metadata: v1.0.0, v1.0.0-beta." >&2
   exit 1
 fi
 

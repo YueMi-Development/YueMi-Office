@@ -146,4 +146,13 @@ describe('the workflow', () => {
     expect(ci).toContain('tauri-apps/tauri-action@v1');
     expect(ci).not.toContain('tauri-action@v0');
   });
+
+  it('checks that every place that carries the version agrees', () => {
+    // The version of a build is decided by its tag, and the workflow
+    // writes that version into the tree. A tree whose declarations
+    // disagree would build an installer that says one version and a
+    // package that says another, so the ordinary CI is where that is
+    // caught rather than the release.
+    expect(ci).toContain('version:report');
+  });
 });

@@ -96,16 +96,23 @@ jobs:
         run: bun install --frozen-lockfile
 
       # The version of a release is the version of its tag, so the tag's
-      # version is written into the tree before the build. It is passed
-      # in through the environment rather than written into the command.
+      # version is written into the tree before the build. The script does
+      # the work, because a workflow file is a list of steps and a step
+      # that is forty lines of shell is not a step.
+      #
+      # The tag is passed in through the environment rather than written
+      # into a command, because a tag is not a safe thing to paste into
+      # a shell.
       - name: Set the version
         shell: bash
         env:
-          VERSION: ${{ needs.release.outputs.version }}
-        run: bun run scripts/set-version.ts "$VERSION"
+          TAG: ${{ github.ref_name }}
+        run: .github/scripts/apply-tag-version.sh "$TAG"
 
       # The lockfile records the version of the workspace packages, so it
-      # is written again after the version has changed.
+      # is written again after the version has changed. The script writes
+      # it too, and bun is run over it anyway, because bun is the one
+      # that knows the shape of its own lockfile.
       - name: Update the lockfile
         run: bun install
 

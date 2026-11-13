@@ -54,7 +54,7 @@ cd apps/desktop/src-tauri && cargo test
 |---|---|
 | [docs/architecture.md](docs/architecture.md) | How the parts fit together, the project format, the render service's endpoints |
 | [docs/assistant.md](docs/assistant.md) | The agent loop, the tools, the providers, the keys, the settings dialog |
-| [docs/development.md](docs/development.md) | Running it, building an installer, what CI and the release workflow do |
+| [docs/development.md](docs/development.md) | Running it, building an installer, where the version is declared, what CI and the release workflow do |
 | [docs/PRD-markdown-document-studio.md](docs/PRD-markdown-document-studio.md) | The product requirements |
 
 ## Status

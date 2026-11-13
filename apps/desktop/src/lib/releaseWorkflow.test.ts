@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import release from '../../../../.github/workflows/release.yml?raw';
 import createRelease from '../../../../.github/scripts/create-release.sh?raw';
 import versionFromTag from '../../../../.github/scripts/version-from-tag.sh?raw';
+import applyTagVersion from '../../../../.github/scripts/apply-tag-version.sh?raw';
 import { brokenSteps, readJobs } from './workflowScan';
 
 /**
@@ -69,6 +70,29 @@ describe('the release workflow', () => {
     // carrying a copy of it.
     expect(release).toContain('version-from-tag.sh');
     expect(versionFromTag).toContain('does not name a version');
+  });
+
+  it('puts the version into the tree with the script', () => {
+    // The version of a build is the version of its tag, and the tag's
+    // version has to be written into every file that carries one before
+    // the build starts. The script does the work, because a workflow file
+    // is a list of steps and a step that is forty lines of shell is not a
+    // step.
+    expect(release).toContain('apply-tag-version.sh');
+    expect(applyTagVersion).toContain('version-from-tag.sh');
+    expect(applyTagVersion).toContain('set-version.ts');
+  });
+
+  it('gives the script the tag it was built from', () => {
+    // The version of the build is the version of the tag, and the tag is
+    // what the release job read the version from.
+    expect(release).toContain('TAG: ${{ github.ref_name }}');
+    expect(release).toContain('apply-tag-version.sh "$TAG"');
+  });
+
+  it('does not carry the work of the version in the workflow file', () => {
+    // The workflow says which script to run and nothing else.
+    expect(release).not.toContain('scripts/set-version.ts');
   });
 
   it('publishes a pre-release as a pre-release', () => {

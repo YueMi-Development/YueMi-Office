@@ -52,8 +52,8 @@ keeps the two in step.
 ## Tests
 
 ```bash
-cd apps/api && pytest                    # 144 tests
-bun run test                             # 225 desktop tests, 30 protocol tests
+cd apps/api && pytest                    # 148 tests
+bun run test                             # 244 desktop tests, 30 protocol tests
 cd apps/desktop/src-tauri && cargo test  # 134 tests
 ```
 
@@ -88,6 +88,44 @@ files that carry it.
 
 The builds are not signed. Windows and macOS will warn about an application
 from an unknown developer.
+
+## The version
+
+The whole repository has one version. The desktop app and the render service
+are two parts of one product, they are released together from one tag, and
+they carry the same number.
+
+The version is declared in more than one place, because the toolchains do not
+agree on where they read it:
+
+| Project | File | What it holds |
+|---|---|---|
+| The repository | `package.json` | `version` |
+| The desktop app | `apps/desktop/package.json` | `version` |
+| The protocol package | `packages/protocol/package.json` | `version` |
+| The desktop app | `apps/desktop/src-tauri/tauri.conf.json` | `version`, and the two versions the bundle formats need |
+| The desktop app | `apps/desktop/src-tauri/Cargo.toml` | the version of the crate |
+| The desktop app | `apps/desktop/src-tauri/Cargo.lock` | the version of the crate, as cargo records it |
+| The repository | `bun.lock` | the versions of the workspace packages, as bun records them |
+| The render service | `apps/api/pyproject.toml` | the version of the package |
+| The render service | `apps/api/app/__init__.py` | `__version__` |
+| The render service | `apps/api/app/main.py` | the version of the FastAPI application |
+
+Two commands look after them:
+
+```bash
+bun run set-version 1.0.0-beta   # writes the version into every file
+bun run version:report           # says what each file carries
+```
+
+`version:report` fails when the places disagree, and the ordinary CI runs
+it, so a tree that would build the wrong thing is caught before a release
+rather than after one.
+
+The rules live in `apps/desktop/src/lib/version.ts`, which is where the
+setters are and where the tests check them. A file that is added to the list
+of version files is a file that the release workflow writes into, so a new
+project has to be added there rather than left to be remembered.
 
 ## CI
 
@@ -131,7 +169,8 @@ flowchart LR
     T["A tag: v1.0.0"] --> V["The version is read<br/>and checked"]
     V --> R["The release is created<br/>on GitHub"]
     R --> W["The Windows, macOS<br/>and Linux jobs"]
-    W --> U["The installers are uploaded<br/>into the release"]
+    W --> S["The tag's version is written<br/>into the tree"]
+    S --> U["The installers are uploaded<br/>into the release"]
 ```
 
 The release is created once, before the three platform jobs, so that the
@@ -140,5 +179,7 @@ a failed workflow adds to the release that is already there.
 
 The tag's version is written into the tree before the build, so the
 installers, the packages and the release page all carry the same number.
-See [Building a binary](#building-a-binary) for what the installers are
-called.
+The script that does it is
+[.github/scripts/apply-tag-version.sh](../.github/scripts/apply-tag-version.sh),
+which reads the version out of the tag and puts it into every file that
+carries one. See [The version](#the-version) for where those files are.

@@ -111,6 +111,13 @@ jobs:
       - name: Type check
         run: bun run typecheck
 
+      # Every place that carries the version has to carry the same one.
+      # A tree whose declarations disagree would build an installer that
+      # says one version and a package that says another, and the report
+      # is what says which place is the odd one out.
+      - name: Check the version declarations
+        run: bun run version:report
+
       - name: Run tests
         run: bun run test
 

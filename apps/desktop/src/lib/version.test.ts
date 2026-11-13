@@ -5,17 +5,28 @@ import desktopPackage from '../../../../apps/desktop/package.json?raw';
 import protocolPackage from '../../../../packages/protocol/package.json?raw';
 import tauriConfig from '../../../../apps/desktop/src-tauri/tauri.conf.json?raw';
 import cargoToml from '../../../../apps/desktop/src-tauri/Cargo.toml?raw';
-import lockfile from '../../../../bun.lock?raw';
+import cargoLock from '../../../../apps/desktop/src-tauri/Cargo.lock?raw';
+import bunLock from '../../../../bun.lock?raw';
+import apiPyproject from '../../../../apps/api/pyproject.toml?raw';
+import apiInit from '../../../../apps/api/app/__init__.py?raw';
+import apiMain from '../../../../apps/api/app/main.py?raw';
 import {
   applyVersion,
   isPrereleaseTag,
   macosBundleVersion,
   parseVersion,
+  setBunLockVersion,
+  setCargoLockVersion,
   setCargoVersion,
+  setFastApiVersion,
   setPackageVersion,
+  setPyprojectVersion,
+  setPythonVersion,
   setTauriVersion,
   versionFromTag,
+  versionInFile,
   versionInFiles,
+  versionsInFiles,
   wixVersion,
   type VersionFiles,
 } from './version';
@@ -37,6 +48,11 @@ function treeFiles(): VersionFiles {
     protocolPackage,
     tauriConfig,
     cargoToml,
+    cargoLock,
+    bunLock,
+    apiPyproject,
+    apiInit,
+    apiMain,
   };
 }
 
@@ -156,10 +172,191 @@ describe('writing the version into the files', () => {
     expect(JSON.parse(updated.protocolPackage).version).toBe('1.0.0-beta');
     expect(JSON.parse(updated.tauriConfig).version).toBe('1.0.0-beta');
     expect(updated.cargoToml).toContain('version = "1.0.0-beta"');
+    expect(updated.cargoLock).toContain('version = "1.0.0-beta"');
+    expect(updated.apiPyproject).toContain('version = "1.0.0-beta"');
+    expect(updated.apiInit).toContain('__version__ = "1.0.0-beta"');
+    expect(updated.apiMain).toContain('version="1.0.0-beta"');
   });
 
   it('refuses a version that is not one', () => {
     expect(() => applyVersion(treeFiles(), '1.0')).toThrow(/Not a version/);
+  });
+});
+
+describe('writing the version into the render service', () => {
+  it('changes the version of a pyproject.toml', () => {
+    const contents = setPyprojectVersion(
+      [
+        '[build-system]',
+        'requires = ["setuptools>=68"]',
+        '',
+        '[project]',
+        'name = "yuemi-api"',
+        'version = "0.1.0"',
+        'dependencies = [',
+        '  "weasyprint==70.0",',
+        ']',
+      ].join('\n'),
+      '1.0.0',
+    );
+
+    expect(contents).toContain('version = "1.0.0"');
+    expect(contents).toContain('name = "yuemi-api"');
+  });
+
+  it('leaves the pinned dependencies of a pyproject.toml alone', () => {
+    // Some of the dependencies are pinned exactly, because they decide
+    // the bytes of the PDF. A rewrite that did not stop at the table
+    // would unpin them.
+    const contents = setPyprojectVersion(
+      [
+        '[project]',
+        'version = "0.1.0"',
+        'dependencies = [',
+        '  "weasyprint==70.0",',
+        ']',
+      ].join('\n'),
+      '1.0.0',
+    );
+
+    expect(contents).toContain('"weasyprint==70.0"');
+  });
+
+  it('changes the __version__ of a module', () => {
+    const contents = setPythonVersion(
+      ['__version__ = "0.1.0"', '', 'OTHER = "not the version"'].join('\n'),
+      '1.0.0',
+    );
+
+    expect(contents).toContain('__version__ = "1.0.0"');
+    expect(contents).toContain('OTHER = "not the version"');
+  });
+
+  it('refuses a module that has no __version__', () => {
+    expect(() => setPythonVersion('OTHER = "1.0.0"', '1.0.0')).toThrow(
+      /no __version__/,
+    );
+  });
+
+  it('changes the version of the FastAPI application', () => {
+    const contents = setFastApiVersion(
+      [
+        'app = FastAPI(',
+        '    title="yuemi Render Service",',
+        '    version="0.1.0",',
+        '    description="Renders projects.",',
+        ')',
+      ].join('\n'),
+      '1.0.0',
+    );
+
+    expect(contents).toContain('version="1.0.0"');
+    expect(contents).toContain('title="yuemi Render Service"');
+  });
+
+  it('refuses a file that has no FastAPI application', () => {
+    expect(() => setFastApiVersion('app = 1', '1.0.0')).toThrow(
+      /no FastAPI application/,
+    );
+  });
+});
+
+describe('writing the version into the lockfile', () => {
+  it('changes the version of this crate', () => {
+    const contents = setCargoLockVersion(
+      [
+        '[[package]]',
+        'name = "anyhow"',
+        'version = "1.0.104"',
+        '',
+        '[[package]]',
+        'name = "app"',
+        'version = "0.1.0"',
+        'dependencies = [',
+        ' "log",',
+        ']',
+      ].join('\n'),
+      '1.0.0',
+    );
+
+    expect(contents).toContain('name = "app"\nversion = "1.0.0"');
+  });
+
+  it('leaves the versions of the crates it depends on alone', () => {
+    const contents = setCargoLockVersion(
+      [
+        '[[package]]',
+        'name = "anyhow"',
+        'version = "1.0.104"',
+        '',
+        '[[package]]',
+        'name = "app"',
+        'version = "0.1.0"',
+      ].join('\n'),
+      '1.0.0',
+    );
+
+    expect(contents).toContain('version = "1.0.104"');
+  });
+
+  it('refuses a lockfile that has no package of ours', () => {
+    expect(() => setCargoLockVersion('[[package]]\nname = "log"\n', '1.0.0')).toThrow(
+      /no app package/,
+    );
+  });
+});
+
+describe('writing the version into the JavaScript lockfile', () => {
+  it('changes the version of the workspace packages', () => {
+    const contents = setBunLockVersion(
+      [
+        '{',
+        '  "workspaces": {',
+        '    "": {',
+        '      "name": "yuemi-office",',
+        '    },',
+        '    "apps/desktop": {',
+        '      "name": "@yuemi/desktop",',
+        '      "version": "0.1.0",',
+        '    },',
+        '  },',
+        '  "packages": {',
+        '    "path-data-parser": ["path-data-parser@0.1.0", "", {}],',
+        '  },',
+        '}',
+      ].join('\n'),
+      '1.0.0',
+    );
+
+    expect(contents).toContain('"version": "1.0.0"');
+  });
+
+  it('leaves the versions of the dependencies alone', () => {
+    // The lockfile records the versions of every package the workspace
+    // depends on, and those are not ours to change.
+    const contents = setBunLockVersion(
+      [
+        '{',
+        '  "workspaces": {',
+        '    "apps/desktop": {',
+        '      "version": "0.1.0",',
+        '    },',
+        '  },',
+        '  "packages": {',
+        '    "path-data-parser": ["path-data-parser@0.1.0", "", {}],',
+        '  },',
+        '}',
+      ].join('\n'),
+      '1.0.0',
+    );
+
+    expect(contents).toContain('path-data-parser@0.1.0');
+  });
+
+  it('refuses a lockfile that has no workspaces table', () => {
+    expect(() => setBunLockVersion('{ "packages": {} }', '1.0.0')).toThrow(
+      /no workspaces table/,
+    );
   });
 });
 
@@ -178,7 +375,7 @@ describe('the version in the tree', () => {
     // lockfile that records another one is a lockfile that has to be
     // written again before the build.
     const version = versionInFiles(treeFiles());
-    const recorded = lockfile.match(/"version": "[^"]+"/g) ?? [];
+    const recorded = bunLock.match(/"version": "[^"]+"/g) ?? [];
 
     // Both workspace packages that carry a version carry this one.
     expect(recorded.length).toBeGreaterThan(0);
@@ -194,5 +391,35 @@ describe('the version in the tree', () => {
     expect(version).not.toBeNull();
     expect(config.bundle.windows.wix.version).toBe(wixVersion(version!));
     expect(config.bundle.macOS.bundleVersion).toBe(macosBundleVersion(version!));
+  });
+
+  it('is the version every project of the tree declares', () => {
+    // The render service is a separate project with a version of its
+    // own, and it is released together with the desktop app, so it
+    // carries the same number.
+    const versions = versionsInFiles(treeFiles());
+
+    for (const version of Object.values(versions)) {
+      expect(version).toBe('0.1.0');
+    }
+  });
+
+  it('is read out of each kind of file', () => {
+    const files = treeFiles();
+
+    expect(versionInFile('rootPackage', files.rootPackage)).toBe('0.1.0');
+    expect(versionInFile('cargoToml', files.cargoToml)).toBe('0.1.0');
+    expect(versionInFile('cargoLock', files.cargoLock)).toBe('0.1.0');
+    expect(versionInFile('apiPyproject', files.apiPyproject)).toBe('0.1.0');
+    expect(versionInFile('apiInit', files.apiInit)).toBe('0.1.0');
+    expect(versionInFile('apiMain', files.apiMain)).toBe('0.1.0');
+  });
+
+  it('is null when a file has no version in it', () => {
+    // A file that was written wrongly is reported rather than skipped,
+    // because a skipped file is a file that ships the wrong number.
+    expect(versionInFile('apiInit', 'OTHER = "1.0.0"')).toBeNull();
+    expect(versionInFile('apiMain', 'app = 1')).toBeNull();
+    expect(versionInFile('cargoLock', '[[package]]\nname = "log"\n')).toBeNull();
   });
 });
