@@ -23,7 +23,7 @@ You need [Bun](https://bun.sh), Rust, and Python 3.10+.
 # The render service
 cd apps/api
 python -m venv .venv
-. .venv/bin/activate            # .venv\Scripts\activate on Windows
+. .venv/bin/activate
 pip install -e ".[dev]"
 uvicorn app.main:app --port 32100
 
@@ -43,9 +43,9 @@ Pango DLLs.
 ## Tests
 
 ```bash
-cd apps/api && pytest                    # 144 tests
-bun run test                             # 207 desktop tests, 30 protocol tests
-cd apps/desktop/src-tauri && cargo test  # 119 tests
+cd apps/api && pytest
+bun run test
+cd apps/desktop/src-tauri && cargo test
 ```
 
 ## Documentation
