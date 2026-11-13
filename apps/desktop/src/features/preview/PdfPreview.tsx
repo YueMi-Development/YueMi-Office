@@ -63,14 +63,18 @@ export function PdfPreview({ pdf, status, error }: PdfPreviewProps) {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const drawPage = useCallback(
-    async (target: PdfDocument, pageNumber: number, scale: number) => {
+    async (
+      target: PdfDocument,
+      pageNumber: number,
+      scale: number,
+    ): Promise<string | null> => {
       const canvas = canvasRef.current;
       if (!canvas) {
-        return;
+        return null;
       }
       const context = canvas.getContext('2d');
       if (!context) {
-        return;
+        return null;
       }
 
       // Every draw takes a number, so that a draw which has been superseded
@@ -85,7 +89,7 @@ export function PdfPreview({ pdf, status, error }: PdfPreviewProps) {
       // nothing to do. It stops before it touches the canvas, because
       // clearing the canvas now would erase the newer draw's page.
       if (drawId !== drawIdRef.current) {
-        return;
+        return null;
       }
 
       const viewport = pdfPage.getViewport({ scale });
@@ -113,9 +117,11 @@ export function PdfPreview({ pdf, status, error }: PdfPreviewProps) {
       } catch (renderError) {
         // A cancelled render is expected when the page or zoom changes.
         if ((renderError as { name?: string }).name !== 'RenderingCancelledException') {
-          setLoadError((renderError as Error).message);
+          return (renderError as Error).message;
         }
       }
+
+      return null;
     },
     [],
   );
@@ -168,7 +174,21 @@ export function PdfPreview({ pdf, status, error }: PdfPreviewProps) {
     if (!loadedDocument || page > loadedDocument.numPages) {
       return;
     }
-    void drawPage(loadedDocument, page, zoom);
+
+    // The draw reports what went wrong rather than setting the state itself,
+    // so that the state is not written from inside the effect that starts
+    // the draw.
+    let cancelled = false;
+
+    void drawPage(loadedDocument, page, zoom).then((failure) => {
+      if (!cancelled && failure !== null) {
+        setLoadError(failure);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, [loadedDocument, drawPage, page, zoom]);
 
   useEffect(() => {
@@ -227,9 +247,7 @@ export function PdfPreview({ pdf, status, error }: PdfPreviewProps) {
       </div>
 
       <div className="preview-canvas-area">
-        {status === 'rendering' && (
-          <div className="preview-status">Rendering…</div>
-        )}
+        {status === 'rendering' && <div className="preview-status">Rendering…</div>}
         {status === 'error' && (
           <div className="preview-status preview-error">{error}</div>
         )}

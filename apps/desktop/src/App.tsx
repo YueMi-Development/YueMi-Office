@@ -48,6 +48,16 @@ export function App() {
   // Autosave every 10 seconds, as required by PRD section 8.
   const autosaveRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  const saveToDisk = useCallback(async () => {
+    const state = useProjectStore.getState();
+    if (!state.rootPath) {
+      return;
+    }
+    const { saveProject } = await import('./lib/files');
+    await saveProject(state.rootPath, state.project, state.files);
+    markSaved();
+  }, [markSaved]);
+
   useEffect(() => {
     autosaveRef.current = setInterval(() => {
       if (useProjectStore.getState().dirty) {
@@ -60,6 +70,9 @@ export function App() {
         clearInterval(autosaveRef.current);
       }
     };
+    // The interval is set up once. It reads the project from the store on
+    // every tick, so it does not have to be rebuilt when the project
+    // changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -94,16 +107,6 @@ export function App() {
     },
     [activeFile, setFileText],
   );
-
-  const saveToDisk = useCallback(async () => {
-    const state = useProjectStore.getState();
-    if (!state.rootPath) {
-      return;
-    }
-    const { saveProject } = await import('./lib/files');
-    await saveProject(state.rootPath, state.project, state.files);
-    markSaved();
-  }, [markSaved]);
 
   const handleExportPdf = useCallback(async () => {
     const state = usePreviewStore.getState();
@@ -145,7 +148,9 @@ export function App() {
     const { project, issues } = parseProject(
       result.project ? JSON.stringify(result.project) : '',
     );
-    setProjectIssues(issues.length > 0 ? issues.map((issue) => issue.message).join(' ') : null);
+    setProjectIssues(
+      issues.length > 0 ? issues.map((issue) => issue.message).join(' ') : null,
+    );
 
     useProjectStore.getState().openProject(
       folder,
@@ -192,7 +197,7 @@ export function App() {
     [activeFile, files],
   );
 
-  const editorLanguage = useMemo< 'markdown' | 'css' >(() => {
+  const editorLanguage = useMemo<'markdown' | 'css'>(() => {
     if (!activeFile) {
       return 'markdown';
     }
@@ -225,7 +230,12 @@ export function App() {
           <button type="button" onClick={() => setShowTemplates(true)}>
             New
           </button>
-          <button type="button" onClick={handleOpen}>
+          <button
+            type="button"
+            onClick={() => {
+              void handleOpen();
+            }}
+          >
             Open
           </button>
           <button type="button" onClick={undo} disabled={undoStack.length === 0}>
@@ -234,13 +244,30 @@ export function App() {
           <button type="button" onClick={redo} disabled={redoStack.length === 0}>
             Redo
           </button>
-          <button type="button" onClick={handleSave} disabled={!rootPath}>
+          <button
+            type="button"
+            onClick={() => {
+              void handleSave();
+            }}
+            disabled={!rootPath}
+          >
             Save
           </button>
-          <button type="button" onClick={handleExportPdf} disabled={!pdf}>
+          <button
+            type="button"
+            onClick={() => {
+              void handleExportPdf();
+            }}
+            disabled={!pdf}
+          >
             Export PDF
           </button>
-          <button type="button" onClick={handleExportMarkdown}>
+          <button
+            type="button"
+            onClick={() => {
+              void handleExportMarkdown();
+            }}
+          >
             Export Markdown
           </button>
           <button
@@ -250,10 +277,7 @@ export function App() {
           >
             Settings
           </button>
-          <button
-            type="button"
-            onClick={() => setShowAssistant((shown) => !shown)}
-          >
+          <button type="button" onClick={() => setShowAssistant((shown) => !shown)}>
             Assistant
           </button>
         </div>
@@ -307,9 +331,7 @@ export function App() {
           <WarningsPanel warnings={warnings} onOpenFile={handleOpenWarningFile} />
         </section>
 
-        {showAssistant && (
-          <AssistantPanel onClose={() => setShowAssistant(false)} />
-        )}
+        {showAssistant && <AssistantPanel onClose={() => setShowAssistant(false)} />}
       </main>
 
       {showTemplates && (
@@ -321,9 +343,7 @@ export function App() {
         />
       )}
 
-      {showSettings && (
-        <SettingsDialog onClose={() => setShowSettings(false)} />
-      )}
+      {showSettings && <SettingsDialog onClose={() => setShowSettings(false)} />}
     </div>
   );
 }

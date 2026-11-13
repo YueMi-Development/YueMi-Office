@@ -74,7 +74,10 @@ function provider(id: string, name: string): ProviderConfig {
  */
 function reset(): void {
   shell = {
-    providers: [provider('anthropic', 'Anthropic (Claude)'), provider('openai', 'OpenAI')],
+    providers: [
+      provider('anthropic', 'Anthropic (Claude)'),
+      provider('openai', 'OpenAI'),
+    ],
     activeProviderId: null,
     activeModel: null,
     aiEnabled: true,
@@ -119,6 +122,7 @@ function reset(): void {
       if (shell.testFailure) {
         // The shell rejects with the reason as a plain value, not as an
         // Error, so this is how the real failure arrives.
+        // eslint-disable-next-line @typescript-eslint/only-throw-error
         throw shell.testFailure;
       }
       return shell.answer;
@@ -160,7 +164,7 @@ describe('the settings dialog', () => {
     fireEvent.change(screen.getByLabelText('Provider') as HTMLSelectElement, {
       target: { value: 'anthropic' },
     });
-    fireEvent.change(screen.getByPlaceholderText('The provider\'s default model'), {
+    fireEvent.change(screen.getByPlaceholderText("The provider's default model"), {
       target: { value: 'claude-opus-4-1' },
     });
     fireEvent.click(

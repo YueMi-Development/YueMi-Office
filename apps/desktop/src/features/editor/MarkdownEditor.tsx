@@ -1,7 +1,12 @@
 import { useEffect, useRef } from 'react';
 import { Compartment, EditorState, type Extension } from '@codemirror/state';
 import { EditorView, keymap, lineNumbers, highlightActiveLine } from '@codemirror/view';
-import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
+import {
+  defaultKeymap,
+  history,
+  historyKeymap,
+  indentWithTab,
+} from '@codemirror/commands';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { css } from '@codemirror/lang-css';
 import { languages } from '@codemirror/language-data';
@@ -79,13 +84,19 @@ export function MarkdownEditor({
   const viewRef = useRef<EditorView | null>(null);
   const readOnlyCompartment = useRef(new Compartment());
   const languageCompartment = useRef(new Compartment());
-  // Kept in a ref so the change handler does not need to be rebuilt on every
-  // render, which would tear down the editor.
   const onChangeRef = useRef(onChange);
-  onChangeRef.current = onChange;
   const onCommitRef = useRef(onCommit);
-  onCommitRef.current = onCommit;
   const commitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // The change handler is kept in a ref so the CodeMirror listener does not
+  // have to be rebuilt on every render, which would tear down the editor.
+  // The ref is written after the render rather than during it, because a ref
+  // that is written during the render is read by a later render before the
+  // write is guaranteed to have happened.
+  useEffect(() => {
+    onChangeRef.current = onChange;
+    onCommitRef.current = onCommit;
+  });
 
   // A pause in typing ends the current editing burst and records an undo
   // point, so one undo step covers one burst rather than one keystroke.

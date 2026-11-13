@@ -153,9 +153,7 @@ export function SettingsDialog({ onClose }: SettingsDialogProps) {
         `The render service answered (WeasyPrint ${health.weasyprintVersion}).`,
       );
     } catch (error) {
-      setStatus(
-        `Could not reach the service: ${reasonOf(error, 'unknown error')}`,
-      );
+      setStatus(`Could not reach the service: ${reasonOf(error, 'unknown error')}`);
     } finally {
       setChecking(false);
     }
@@ -237,13 +235,23 @@ export function SettingsDialog({ onClose }: SettingsDialogProps) {
   };
 
   return (
-    <div className="template-picker" role="presentation" onClick={onClose}>
+    <div
+      className="template-picker"
+      role="presentation"
+      onClick={(event) => {
+        // The click is only a click on the backdrop when it landed on the
+        // backdrop itself. A click inside the panel lands on the panel, and
+        // the panel is not a button and does not need to be one.
+        if (event.target === event.currentTarget) {
+          onClose();
+        }
+      }}
+    >
       <div
         className="template-picker-panel settings-panel"
         role="dialog"
         aria-label="Settings"
         aria-modal="true"
-        onClick={(event) => event.stopPropagation()}
       >
         <h2 className="template-picker-title">Settings</h2>
 
@@ -416,7 +424,9 @@ export function SettingsDialog({ onClose }: SettingsDialogProps) {
                         update(provider.id, { supportsImages: event.target.checked })
                       }
                     />
-                    <span className="settings-label">Can look at the rendered pages</span>
+                    <span className="settings-label">
+                      Can look at the rendered pages
+                    </span>
                   </label>
 
                   {provider.requiresKey && (
@@ -451,7 +461,9 @@ export function SettingsDialog({ onClose }: SettingsDialogProps) {
                       />
                       <button
                         type="button"
-                        onClick={() => handleSaveKey(provider.id)}
+                        onClick={() => {
+                          void handleSaveKey(provider.id);
+                        }}
                         disabled={(keys[provider.id] ?? '').trim().length === 0}
                       >
                         Save key
@@ -462,7 +474,9 @@ export function SettingsDialog({ onClose }: SettingsDialogProps) {
                   <div className="assistant-actions">
                     <button
                       type="button"
-                      onClick={() => handleTest(provider)}
+                      onClick={() => {
+                        void handleTest(provider);
+                      }}
                       disabled={testing === provider.id}
                     >
                       {testing === provider.id ? 'Testing…' : 'Test provider'}
@@ -488,15 +502,21 @@ export function SettingsDialog({ onClose }: SettingsDialogProps) {
 
           {config && (
             <p className="settings-hint">
-              The settings are kept in <code>{config.directory}</code>. The keys are in a
-              separate file there, so the settings file can be shared without giving
+              The settings are kept in <code>{config.directory}</code>. The keys are in
+              a separate file there, so the settings file can be shared without giving
               anything away.
             </p>
           )}
         </section>
 
         <div className="template-picker-actions">
-          <button type="button" onClick={handleCheck} disabled={checking}>
+          <button
+            type="button"
+            onClick={() => {
+              void handleCheck();
+            }}
+            disabled={checking}
+          >
             {checking ? 'Checking…' : 'Test service'}
           </button>
           <button type="button" onClick={() => void handleSave()} disabled={saving}>

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import architecture from '../../../../docs/architecture.md?raw';
 import assistant from '../../../../docs/assistant.md?raw';
 import development from '../../../../docs/development.md?raw';
+import linting from '../../../../docs/linting.md?raw';
 
 /**
  * The diagrams in the documentation.
@@ -17,6 +18,7 @@ const DOCUMENTS: { name: string; text: string }[] = [
   { name: 'architecture.md', text: architecture },
   { name: 'assistant.md', text: assistant },
   { name: 'development.md', text: development },
+  { name: 'linting.md', text: linting },
 ];
 
 /**
@@ -28,7 +30,10 @@ function blocksOf(text: string): string[] {
 
 describe('the diagrams in the documentation', () => {
   it('are there to be checked', () => {
-    const count = DOCUMENTS.reduce((total, doc) => total + blocksOf(doc.text).length, 0);
+    const count = DOCUMENTS.reduce(
+      (total, doc) => total + blocksOf(doc.text).length,
+      0,
+    );
 
     expect(count).toBeGreaterThan(0);
   });

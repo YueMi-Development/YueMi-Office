@@ -108,7 +108,9 @@ export function AssistantPanel({ onClose }: AssistantPanelProps) {
           type="button"
           role="tab"
           aria-selected={tab === 'chat'}
-          className={tab === 'chat' ? 'assistant-tab assistant-tab-active' : 'assistant-tab'}
+          className={
+            tab === 'chat' ? 'assistant-tab assistant-tab-active' : 'assistant-tab'
+          }
           onClick={() => setTab('chat')}
         >
           Chat
@@ -143,7 +145,13 @@ export function AssistantPanel({ onClose }: AssistantPanelProps) {
           </label>
 
           <div className="assistant-actions">
-            <button type="button" onClick={handleRun} disabled={status === 'running'}>
+            <button
+              type="button"
+              onClick={() => {
+                void handleRun();
+              }}
+              disabled={status === 'running'}
+            >
               {status === 'running' ? 'Running…' : 'Run session'}
             </button>
           </div>

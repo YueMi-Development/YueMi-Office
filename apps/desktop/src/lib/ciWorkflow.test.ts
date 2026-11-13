@@ -155,4 +155,24 @@ describe('the workflow', () => {
     // caught rather than the release.
     expect(ci).toContain('version:report');
   });
+
+  it('asks for bash where the lint job runs a script', () => {
+    // The scripts under `.github/scripts` are shell scripts, and a runner
+    // on Windows runs a step in PowerShell by default. The lint job runs
+    // on Linux today, but the rule is kept here so that the job can be
+    // moved onto a matrix of platforms without the rule being forgotten.
+    const lint = readJobs(ci).find((job) => job.name === 'lint');
+
+    expect(lint).toBeDefined();
+
+    const steps = lint?.steps ?? [];
+
+    expect(steps.length).toBeGreaterThan(0);
+
+    for (const step of steps) {
+      if (step.command.some((line) => line.includes('.github/scripts/'))) {
+        expect(step.shell).toBe('bash');
+      }
+    }
+  });
 });

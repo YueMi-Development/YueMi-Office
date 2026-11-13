@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { AiToolName, AiToolResult, ModelWindow, ProposedEdit } from '@yuemi/protocol';
+import type {
+  AiToolName,
+  AiToolResult,
+  ModelWindow,
+  ProposedEdit,
+} from '@yuemi/protocol';
 
 import { ContextDonut } from './ContextDonut';
 import { ModeSwitcher } from './ModeSwitcher';
@@ -45,7 +50,13 @@ export function ChatPanel() {
   const serviceUrl = useSettingsStore((state) => state.serviceUrl);
 
   const [draft, setDraft] = useState('');
-  const [modelWindow, setModelWindow] = useState<ModelWindow | null>(null);
+  // The window is stored together with the model it belongs to, so that a
+  // lookup for a model that is no longer chosen is simply not the window
+  // that is shown, rather than something that has to be cleared.
+  const [foundWindow, setFoundWindow] = useState<{
+    model: string;
+    window: ModelWindow | null;
+  } | null>(null);
   const bottom = useRef<HTMLDivElement | null>(null);
 
   const provider = useMemo(() => providerInUse(config), [config]);
@@ -66,13 +77,12 @@ export function ChatPanel() {
     let cancelled = false;
 
     if (!provider?.id || !provider.model) {
-      setModelWindow(null);
       return;
     }
 
     void modelContextWindow(provider.id, provider.model).then((found) => {
       if (!cancelled) {
-        setModelWindow(found);
+        setFoundWindow({ model: provider.model, window: found });
       }
     });
 
@@ -80,6 +90,9 @@ export function ChatPanel() {
       cancelled = true;
     };
   }, [provider?.id, provider?.model]);
+
+  const modelWindow =
+    foundWindow && foundWindow.model === provider?.model ? foundWindow.window : null;
 
   useEffect(() => {
     // Not every environment has the method, so it is checked rather than
@@ -201,8 +214,8 @@ export function ChatPanel() {
       <div className="chat-messages">
         {messages.length === 0 && (
           <p className="chat-empty">
-            Ask the assistant about the document. It can read the document, propose changes
-            and check how they look.
+            Ask the assistant about the document. It can read the document, propose
+            changes and check how they look.
           </p>
         )}
 
@@ -261,13 +274,20 @@ export function ChatPanel() {
         <div className="assistant-actions">
           <button
             type="button"
-            onClick={handleSend}
+            onClick={() => {
+              void handleSend();
+            }}
             disabled={disabled || draft.trim().length === 0}
           >
             {status === 'running' ? 'Thinking…' : 'Send'}
           </button>
           {status === 'running' && (
-            <button type="button" onClick={handleStop}>
+            <button
+              type="button"
+              onClick={() => {
+                void handleStop();
+              }}
+            >
               Stop
             </button>
           )}

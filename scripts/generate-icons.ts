@@ -17,6 +17,7 @@
  */
 
 import { spawn } from 'node:child_process';
+import { once } from 'node:events';
 import { access, rm } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
@@ -36,24 +37,13 @@ const MOBILE_FOLDERS = ['android', 'ios'];
 try {
   await access(source);
 } catch {
-  process.stderr.write(
-    `The picture the icons are made of is missing: ${source}\n`,
-  );
+  process.stderr.write(`The picture the icons are made of is missing: ${source}\n`);
   process.exit(1);
 }
 
 const child = spawn(
   'bun',
-  [
-    'run',
-    '--cwd',
-    'apps/desktop',
-    'tauri',
-    'icon',
-    source,
-    '--output',
-    output,
-  ],
+  ['run', '--cwd', 'apps/desktop', 'tauri', 'icon', source, '--output', output],
   {
     cwd: resolve(import.meta.dir, '..'),
     stdio: 'inherit',
@@ -61,19 +51,25 @@ const child = spawn(
   },
 );
 
-child.on('exit', async (code, signal) => {
-  if (signal) {
-    process.stderr.write(`The icon generation was stopped by ${signal}.\n`);
-    process.exit(1);
-  }
+// The script waits for the tool rather than ending when the tool ends, so
+// that the folders it writes are removed before the script reports that it
+// is done.
+const [code, signal] = (await once(child, 'exit')) as [
+  number | null,
+  NodeJS.Signals | null,
+];
 
-  if (code !== 0) {
-    process.exit(code ?? 1);
-  }
+if (signal) {
+  process.stderr.write(`The icon generation was stopped by ${signal}.\n`);
+  process.exit(1);
+}
 
-  for (const folder of MOBILE_FOLDERS) {
-    await rm(resolve(output, folder), { recursive: true, force: true });
-  }
+if (code !== 0) {
+  process.exit(code ?? 1);
+}
 
-  process.stdout.write(`The icons are in ${output}\n`);
-});
+for (const folder of MOBILE_FOLDERS) {
+  await rm(resolve(output, folder), { recursive: true, force: true });
+}
+
+process.stdout.write(`The icons are in ${output}\n`);
