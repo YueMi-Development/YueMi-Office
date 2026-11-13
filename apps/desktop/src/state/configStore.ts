@@ -41,6 +41,40 @@ export interface ConfigState {
   activeProvider: () => ProviderConfig | null;
 }
 
+/**
+ * The provider that answers, from a configuration.
+ *
+ * The provider the user picked wins. If none is picked, the first provider
+ * that has a key is used, so the app works as soon as one provider is set
+ * up.
+ */
+export function providerInUse(config: AppConfigView | null): ProviderConfig | null {
+  if (!config) {
+    return null;
+  }
+
+  const chosen =
+    config.providers.find((provider) => provider.id === config.activeProviderId) ??
+    config.providers.find((provider) => provider.hasKey) ??
+    config.providers[0] ??
+    null;
+
+  if (!chosen) {
+    return null;
+  }
+
+  return {
+    id: chosen.id,
+    name: chosen.name,
+    protocol: chosen.protocol,
+    baseUrl: chosen.baseUrl,
+    model: config.activeModel ?? chosen.model,
+    models: chosen.models,
+    supportsImages: chosen.supportsImages,
+    requiresKey: chosen.requiresKey,
+  };
+}
+
 export const useConfigStore = create<ConfigState>((set, get) => ({
   config: null,
   loaded: false,
@@ -96,31 +130,5 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
     }
   },
 
-  activeProvider: () => {
-    const config = get().config;
-    if (!config) {
-      return null;
-    }
-
-    const chosen =
-      config.providers.find((provider) => provider.id === config.activeProviderId) ??
-      config.providers.find((provider) => provider.hasKey) ??
-      config.providers[0] ??
-      null;
-
-    if (!chosen) {
-      return null;
-    }
-
-    return {
-      id: chosen.id,
-      name: chosen.name,
-      protocol: chosen.protocol,
-      baseUrl: chosen.baseUrl,
-      model: config.activeModel ?? chosen.model,
-      models: chosen.models,
-      supportsImages: chosen.supportsImages,
-      requiresKey: chosen.requiresKey,
-    };
-  },
+  activeProvider: () => providerInUse(get().config),
 }));

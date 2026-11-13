@@ -130,8 +130,38 @@ pub fn handle_event(
                 }
             }
         }
+        // The message starting says how much of the context the conversation
+        // took up, and the message ending says how much the answer took up.
+        "message_start" => {
+            if let Some(usage) = parsed.message.and_then(|message| message.usage) {
+                record_usage(turn, usage);
+            }
+        }
+        "message_delta" => {
+            if let Some(usage) = parsed.usage {
+                record_usage(turn, usage);
+            }
+        }
         "content_block_stop" => {}
         _ => {}
+    }
+}
+
+/// Adds what the provider said about the context to the turn.
+///
+/// The two events report different halves of the same number, so the
+/// larger of the two is kept for each: a message that starts says nothing
+/// about the answer, and a message that ends says nothing about the
+/// conversation.
+fn record_usage(turn: &mut ProviderTurn, usage: super::sse::AnthropicUsage) {
+    let entry = turn.usage.get_or_insert(super::TokenUsage::default());
+
+    let input = usage.input_tokens + usage.cache_read_input_tokens;
+    if input > entry.input_tokens {
+        entry.input_tokens = input;
+    }
+    if usage.output_tokens > entry.output_tokens {
+        entry.output_tokens = usage.output_tokens;
     }
 }
 

@@ -133,12 +133,27 @@ impl SseReader {
 /// The payload of an OpenAI stream chunk.
 ///
 /// The chunk carries the text of the answer and, when the assistant asks
-/// for a tool, the tool's arguments in pieces.
+/// for a tool, the tool's arguments in pieces. The last chunk may also
+/// carry how much of the context the turn used.
 #[derive(Debug, Deserialize)]
 pub struct OpenAiChunk {
     /// The choices of the chunk.
     #[serde(default)]
     pub choices: Vec<OpenAiChoice>,
+    /// How much of the context the turn used, when the server said.
+    #[serde(default)]
+    pub usage: Option<OpenAiUsage>,
+}
+
+/// How much of the context a turn used.
+#[derive(Debug, Clone, Copy, Deserialize)]
+pub struct OpenAiUsage {
+    /// The tokens the conversation took up.
+    #[serde(default)]
+    pub prompt_tokens: u64,
+    /// The tokens the answer took up.
+    #[serde(default)]
+    pub completion_tokens: u64,
 }
 
 /// One choice of an OpenAI chunk.
@@ -210,6 +225,26 @@ pub struct AnthropicEvent {
     /// The whole message, when the event is the end of the turn.
     #[serde(default)]
     pub message: Option<AnthropicMessage>,
+    /// How much of the context the turn used, when the event says.
+    #[serde(default)]
+    pub usage: Option<AnthropicUsage>,
+}
+
+/// How much of the context a turn used.
+///
+/// Anthropic reports the input tokens when the message starts and the
+/// output tokens when it ends, so the two are added up as they arrive.
+#[derive(Debug, Clone, Copy, Default, Deserialize)]
+pub struct AnthropicUsage {
+    /// The tokens the conversation took up.
+    #[serde(default)]
+    pub input_tokens: u64,
+    /// The tokens the answer took up.
+    #[serde(default)]
+    pub output_tokens: u64,
+    /// The tokens that came from the cache rather than being sent again.
+    #[serde(default)]
+    pub cache_read_input_tokens: u64,
 }
 
 /// A content block of an Anthropic message.
@@ -246,4 +281,7 @@ pub struct AnthropicMessage {
     /// The message's content blocks.
     #[serde(default)]
     pub content: Vec<AnthropicContentBlock>,
+    /// How much of the context the message took up, when the event says.
+    #[serde(default)]
+    pub usage: Option<AnthropicUsage>,
 }

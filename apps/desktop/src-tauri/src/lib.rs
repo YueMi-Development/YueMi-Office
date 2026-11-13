@@ -1,5 +1,6 @@
 mod assistant;
 mod config;
+mod models_catalog;
 mod project;
 pub mod providers;
 
@@ -15,6 +16,8 @@ mod assistant_tests;
 mod test_support;
 #[cfg(test)]
 mod config_tests;
+#[cfg(test)]
+mod models_catalog_tests;
 #[cfg(test)]
 mod project_tests;
 #[cfg(test)]
@@ -78,6 +81,7 @@ pub fn run() {
       assistant::command_run_assistant,
       assistant::command_cancel_assistant,
       assistant::command_test_provider,
+      models_catalog::command_model_context_window,
     ])
     .run(tauri::generate_context!())
     .expect("error while building tauri application");

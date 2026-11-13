@@ -260,6 +260,32 @@ pub const TOOLS: &str = r#"[
   }
 ]"#;
 
+/// The tools the mock service offers when a test needs one that changes the
+/// document as well as one that reads it.
+///
+/// The chat mode only offers the tools that read, so a test of that mode
+/// needs a service that offers more than that.
+pub const TOOLS_WITH_A_CHANGE: &str = r#"[
+  {
+    "name": "read_section",
+    "description": "Read a section of a file.",
+    "parameters": {
+      "type": "object",
+      "properties": { "path": { "type": "string" } },
+      "required": ["path"]
+    }
+  },
+  {
+    "name": "propose_edit",
+    "description": "Propose a change to a file.",
+    "parameters": {
+      "type": "object",
+      "properties": { "path": { "type": "string" } },
+      "required": ["path"]
+    }
+  }
+]"#;
+
 /// The answer the mock service gives when a tool is run.
 pub const SESSION: &str = r#"{
   "id": "session-1",

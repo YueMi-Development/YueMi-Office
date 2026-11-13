@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { useChatStore } from './chatStore';
+import { useChatStore, usageOf } from './chatStore';
 
 /**
  * The conversation with the assistant.
@@ -199,5 +199,63 @@ describe('the chat store', () => {
       { role: 'user', content: [{ kind: 'text', text: 'What is the title?' }] },
       { role: 'assistant', content: [{ kind: 'text', text: 'It is The title.' }] },
     ]);
+  });
+
+  it('runs as the agent until the user says otherwise', () => {
+    expect(useChatStore.getState().mode).toBe('agent');
+
+    useChatStore.getState().setMode('chat');
+
+    expect(useChatStore.getState().mode).toBe('chat');
+  });
+
+  it('keeps how much of the context the turn used', () => {
+    useChatStore.getState().handleEvent({
+      type: 'usage',
+      usage: { inputTokens: 1200, outputTokens: 40 },
+    });
+
+    expect(useChatStore.getState().usage).toEqual({
+      tokens: 1240,
+      estimated: false,
+    });
+  });
+
+  it('forgets the usage when the conversation is cleared', () => {
+    useChatStore.getState().handleEvent({
+      type: 'usage',
+      usage: { inputTokens: 1200, outputTokens: 40 },
+    });
+
+    useChatStore.getState().clear();
+
+    expect(useChatStore.getState().usage).toBeNull();
+  });
+
+  it('estimates the size of the conversation when the provider said nothing', () => {
+    const state = useChatStore.getState();
+    state.addUserMessage('Make the title bigger');
+
+    const usage = usageOf(null, useChatStore.getState().transcript);
+
+    expect(usage?.estimated).toBe(true);
+    // Twenty-one characters, at about four to a token.
+    expect(usage?.tokens).toBe(6);
+  });
+
+  it('prefers what the provider said over the estimate', () => {
+    const state = useChatStore.getState();
+    state.addUserMessage('Make the title bigger');
+
+    const usage = usageOf(
+      { tokens: 1200, estimated: false },
+      useChatStore.getState().transcript,
+    );
+
+    expect(usage).toEqual({ tokens: 1200, estimated: false });
+  });
+
+  it('has no size for a conversation that is empty', () => {
+    expect(usageOf(null, [])).toBeNull();
   });
 });

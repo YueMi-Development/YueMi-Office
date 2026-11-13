@@ -125,6 +125,14 @@ pub fn handle_event(
             }
         }
     }
+
+    // The usage arrives in the last chunk, when the server was asked for it.
+    if let Some(usage) = parsed.usage {
+        turn.usage = Some(super::TokenUsage {
+            input_tokens: usage.prompt_tokens,
+            output_tokens: usage.completion_tokens,
+        });
+    }
 }
 
 /// Builds the request body.
@@ -162,6 +170,9 @@ pub fn build_body(request: &ProviderRequest) -> serde_json::Value {
         "messages": messages,
         "tools": tools,
         "stream": true,
+        // The server only reports how much of the context the turn used when
+        // it is asked, and the app shows that as a ring.
+        "stream_options": { "include_usage": true },
     })
 }
 

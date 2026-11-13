@@ -363,3 +363,71 @@ fn a_tool_call_keeps_the_arguments_it_was_given() {
 
     assert_eq!(call.arguments["query"], "the");
 }
+
+// How much of the context a turn used.
+
+#[test]
+fn the_anthropic_stream_reports_the_input_tokens_when_the_message_starts() {
+    let stream = concat!(
+        "event: message_start\n",
+        "data: {\"type\":\"message_start\",\"message\":{\"usage\":{\"input_tokens\":1200,\"cache_read_input_tokens\":300}}}\n\n",
+    );
+
+    let mut calls: Vec<PendingCall> = Vec::new();
+    let mut turn = ProviderTurn::default();
+
+    for event in read_events(stream) {
+        anthropic::handle_event(&event, &mut calls, &mut turn, &mut |_| {});
+    }
+
+    let usage = turn.usage.expect("the usage of the turn");
+    assert_eq!(usage.input_tokens, 1500);
+    assert_eq!(usage.output_tokens, 0);
+}
+
+#[test]
+fn the_anthropic_stream_reports_the_output_tokens_when_the_message_ends() {
+    let stream = concat!(
+        "event: message_start\n",
+        "data: {\"type\":\"message_start\",\"message\":{\"usage\":{\"input_tokens\":1200}}}\n\n",
+        "event: message_delta\n",
+        "data: {\"type\":\"message_delta\",\"usage\":{\"output_tokens\":40}}\n\n",
+    );
+
+    let mut calls: Vec<PendingCall> = Vec::new();
+    let mut turn = ProviderTurn::default();
+
+    for event in read_events(stream) {
+        anthropic::handle_event(&event, &mut calls, &mut turn, &mut |_| {});
+    }
+
+    let usage = turn.usage.expect("the usage of the turn");
+    assert_eq!(usage.input_tokens, 1200);
+    assert_eq!(usage.output_tokens, 40);
+}
+
+#[test]
+fn the_openai_stream_reports_the_usage_of_the_turn() {
+    let stream = concat!(
+        "data: {\"choices\":[{\"delta\":{\"content\":\"Hello.\"}}]}\n\n",
+        "data: {\"choices\":[],\"usage\":{\"prompt_tokens\":1200,\"completion_tokens\":40}}\n\n",
+    );
+
+    let mut calls: Vec<PendingCall> = Vec::new();
+    let mut turn = ProviderTurn::default();
+
+    for event in read_events(stream) {
+        openai::handle_event(&event, &mut calls, &mut turn, &mut |_| {});
+    }
+
+    let usage = turn.usage.expect("the usage of the turn");
+    assert_eq!(usage.input_tokens, 1200);
+    assert_eq!(usage.output_tokens, 40);
+}
+
+#[test]
+fn the_openai_body_asks_for_the_usage() {
+    let body = openai::build_body(&request());
+
+    assert_eq!(body["stream_options"]["include_usage"], true);
+}

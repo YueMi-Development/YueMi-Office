@@ -14,7 +14,9 @@ use serde_json::{Value, json};
 use tauri::ipc::{Channel, InvokeResponseBody};
 
 use crate::config::{AppConfig, ProviderConfig, ProviderProtocol};
-use crate::test_support::{asking_for_a_tool, MockServer, SESSION, TOOLS};
+use crate::test_support::{
+    asking_for_a_tool, MockServer, SESSION, TOOLS, TOOLS_WITH_A_CHANGE,
+};
 use crate::testing::{
     run_in, write_config_to, CancelFlag, ChatMessage, ChatRequest, MAX_TOOL_ROUNDS,
 };
@@ -62,6 +64,7 @@ fn request(service_url: &str) -> ChatRequest {
         service_url: service_url.to_string(),
         provider_id: Some("mock".to_string()),
         model: Some("mock-model".to_string()),
+        mode: None,
     }
 }
 
@@ -412,4 +415,117 @@ async fn a_provider_without_a_model_says_so() {
     );
 
     assert!(server.bodies_of("/chat/completions").is_empty());
+}
+
+/// The chat mode only offers the tools that read the document.
+///
+/// The provider is only offered the tools that read, so it cannot ask for
+/// one that would change anything: the mode is kept by what the model is
+/// given, not by a check after the fact.
+#[tokio::test]
+async fn the_chat_mode_offers_only_the_tools_that_read() {
+    let server = MockServer::start(
+        vec![
+            "data: {\"choices\":[{\"delta\":{\"content\":\"It is called A.\"}}]}\n\n",
+        ],
+        TOOLS_WITH_A_CHANGE,
+        SESSION,
+    );
+
+    let directory = settings(&server);
+    let (channel, _events) = event_channel();
+
+    let mut request = request(&server.base_url);
+    request.mode = Some("chat".to_string());
+
+    run_in(
+        directory.path(),
+        request,
+        channel,
+        CancelFlag::default(),
+    )
+    .await
+    .expect("the run");
+
+    let turns = server.bodies_of("/chat/completions");
+    assert_eq!(turns.len(), 1, "the model is asked once");
+    assert!(
+        turns[0].contains("read_section"),
+        "the tools that read are offered: {turns:?}"
+    );
+    assert!(
+        !turns[0].contains("propose_edit"),
+        "the tools that change are not offered: {turns:?}"
+    );
+}
+
+/// The agent mode offers every tool, including the ones that change.
+#[tokio::test]
+async fn the_agent_mode_offers_every_tool() {
+    let server = MockServer::start(
+        vec![
+            "data: {\"choices\":[{\"delta\":{\"content\":\"It is called A.\"}}]}\n\n",
+        ],
+        TOOLS_WITH_A_CHANGE,
+        SESSION,
+    );
+
+    let directory = settings(&server);
+    let (channel, _events) = event_channel();
+
+    let mut request = request(&server.base_url);
+    request.mode = Some("agent".to_string());
+
+    run_in(
+        directory.path(),
+        request,
+        channel,
+        CancelFlag::default(),
+    )
+    .await
+    .expect("the run");
+
+    let turns = server.bodies_of("/chat/completions");
+    assert_eq!(turns.len(), 1, "the model is asked once");
+    assert!(
+        turns[0].contains("propose_edit"),
+        "the tools that change are offered: {turns:?}"
+    );
+}
+
+/// How much of the context the turn used is told to the webview.
+///
+/// The provider is the only place that knows, so what it reports is passed
+/// on for the app to show.
+#[tokio::test]
+async fn the_usage_of_the_turn_is_told_to_the_webview() {
+    let server = MockServer::start(
+        vec![
+            "data: {\"choices\":[{\"delta\":{\"content\":\"Hello.\"}}],\"usage\":{\"prompt_tokens\":1200,\"completion_tokens\":40}}\n\n",
+        ],
+        TOOLS,
+        SESSION,
+    );
+
+    let directory = settings(&server);
+    let (channel, events) = event_channel();
+
+    run_in(
+        directory.path(),
+        request(&server.base_url),
+        channel,
+        CancelFlag::default(),
+    )
+    .await
+    .expect("the run");
+
+    let events = events.lock().expect("the events").clone();
+
+    let usage = events
+        .iter()
+        .find(|event| event["type"] == "usage")
+        .expect("the usage of the turn: {events:?}");
+
+    assert_eq!(usage["usage"]["inputTokens"], 1200);
+    assert_eq!(usage["usage"]["outputTokens"], 40);
 }

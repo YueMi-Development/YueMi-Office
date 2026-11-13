@@ -53,8 +53,8 @@ keeps the two in step.
 
 ```bash
 cd apps/api && pytest                    # 144 tests
-bun run test                             # 207 desktop tests, 30 protocol tests
-cd apps/desktop/src-tauri && cargo test  # 119 tests
+bun run test                             # 225 desktop tests, 30 protocol tests
+cd apps/desktop/src-tauri && cargo test  # 134 tests
 ```
 
 The visual tests compare the rendered pages of the reference document against

@@ -47,6 +47,32 @@ see.
 - Be concise. Answer in the fewest words that do the job.
 ";
 
+/// The instructions for a run that only answers questions.
+///
+/// The difference between the two modes is what the assistant may do, so
+/// the prompt says the same thing about the project but says that no change
+/// is being made.
+const CHAT_SYSTEM_PROMPT: &str = "\
+You are the assistant of a Markdown document studio. You answer questions \
+about the document the user is working on.
+
+The project is a folder of Markdown files, CSS stylesheets and assets. You \
+cannot read or write anything outside it, and you cannot run commands.
+
+Rules:
+- You answer questions. You do not make changes: no file is edited and no \
+style is set, and no change is proposed for the user to accept.
+- Read before you answer. Use list_sections and read_section to see what the \
+document says, and search when you are not sure where something is.
+- Be concise. Answer in the fewest words that do the job.
+";
+
+/// The tools the assistant may use when it is only answering questions.
+///
+/// The provider is only offered these tools, so it cannot ask for one that
+/// would change the document.
+const READ_ONLY_TOOLS: [&str; 3] = ["list_sections", "read_section", "search"];
+
 /// The request the webview sends to start a run.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -72,6 +98,9 @@ pub struct ChatRequest {
     /// Which model to use, when the user picked one.
     #[serde(default)]
     pub model: Option<String>,
+    /// How the assistant is running.
+    #[serde(default)]
+    pub mode: Option<String>,
 }
 
 /// What the run tells the webview.
@@ -115,6 +144,11 @@ pub enum AssistantEvent {
         /// How many pages the document has.
         #[serde(rename = "pageCount")]
         page_count: usize,
+    },
+    /// How much of the model's context the turn used.
+    Usage {
+        /// The numbers, in the shape the app expects.
+        usage: providers::TokenUsage,
     },
     /// The run finished.
     Done,
@@ -553,6 +587,21 @@ pub async fn run_in(
 
     agent.tools = tools;
 
+    // In the chat mode the assistant only answers questions, so it is only
+    // offered the tools that read the document. A tool that is not offered
+    // cannot be asked for, which is what keeps the mode honest without a
+    // second branch in the loop.
+    let chat_mode = request.mode.as_deref() == Some("chat");
+    if chat_mode {
+        agent.tools.retain(|tool| READ_ONLY_TOOLS.contains(&tool.name.as_str()));
+    }
+
+    let system_prompt = if chat_mode {
+        CHAT_SYSTEM_PROMPT
+    } else {
+        SYSTEM_PROMPT
+    };
+
     // The conversation the model is answering, which grows as the tools run.
     let mut messages = request.messages.clone();
 
@@ -562,7 +611,7 @@ pub async fn run_in(
         }
 
         let provider_request = ProviderRequest {
-            system: SYSTEM_PROMPT.to_string(),
+            system: system_prompt.to_string(),
             messages: messages.clone(),
             tools: agent.tools.clone(),
             model: agent.model.clone(),
@@ -602,6 +651,12 @@ pub async fn run_in(
 
         for event in collected {
             let _ = channel.send(event);
+        }
+
+        // How much of the context the turn used, when the provider said. The
+        // app shows it as a ring next to the model.
+        if let Some(usage) = turn.usage {
+            let _ = channel.send(AssistantEvent::Usage { usage });
         }
 
         // What the model said goes back into the conversation, so it can see

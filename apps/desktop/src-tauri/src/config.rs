@@ -209,7 +209,7 @@ const CREDENTIALS_TEMP_FILE: &str = "credentials.json.new";
 /// rather than having that permission set afterwards: the moment between
 /// writing the file and restricting it is a moment when the secret in it can
 /// be read by anyone else on the machine.
-fn write_file_atomically(
+pub(crate) fn write_file_atomically(
     directory: &Path,
     file_name: &str,
     temp_name: &str,

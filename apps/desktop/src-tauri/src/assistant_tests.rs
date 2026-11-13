@@ -105,6 +105,7 @@ fn request(provider_id: Option<&str>, model: Option<&str>) -> crate::testing::Ch
         service_url: "http://127.0.0.1:32100".to_string(),
         provider_id: provider_id.map(str::to_string),
         model: model.map(str::to_string),
+        mode: None,
     }
 }
 

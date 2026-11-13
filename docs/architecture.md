@@ -49,6 +49,11 @@ shell asks the service what tools exist and runs the calls the model made.
 The app also runs a scripted session of its own, without a model, and that
 runs in the webview, so it calls the service from there.
 
+The shell also keeps the configuration folder, `~/.yuemi-office/`: the
+configuration itself, the API keys, and the catalogue of model sizes taken
+from models.dev. The keys are apart from the rest because the
+configuration is the file a user would paste into an issue.
+
 ## A document is a folder
 
 A document is a plain-text folder that works with git:

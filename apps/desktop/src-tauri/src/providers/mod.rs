@@ -119,6 +119,19 @@ pub enum ProviderEvent {
     Done,
 }
 
+/// How much of a model's context a turn used.
+///
+/// The provider is the only place that knows this, so it is read from what
+/// the provider sends back.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TokenUsage {
+    /// The tokens the conversation took up when the turn was sent.
+    pub input_tokens: u64,
+    /// The tokens the answer took up.
+    pub output_tokens: u64,
+}
+
 /// The result of a whole turn.
 #[derive(Debug, Clone, Default)]
 pub struct ProviderTurn {
@@ -126,6 +139,8 @@ pub struct ProviderTurn {
     pub text: String,
     /// The tools the assistant asked for.
     pub tool_calls: Vec<ToolCall>,
+    /// How much of the context the turn used, when the provider said.
+    pub usage: Option<TokenUsage>,
 }
 
 /// The address of the provider's API, and the key to use with it.

@@ -109,3 +109,70 @@ first provider that has a key is used, so the app works as soon as one
 provider is set up. The model is the one chosen for the request, or the
 provider's own model, or none at all — in which case the run is refused
 rather than sent with an empty model name.
+
+## The chat's toolbar
+
+The toolbar at the top of the chat holds the three things that are changed
+most often, so that none of them needs the settings dialog.
+
+```mermaid
+flowchart LR
+    M["Chat or Agent"] --> S["What the assistant may do"]
+    P["The model"] --> W["Which provider and model answer"]
+    R["The context ring"] --> U["How much of the context is used"]
+    N["New chat"] --> C["The conversation is emptied"]
+```
+
+**Chat or Agent.** The chat mode answers questions about the document: the
+model is only offered the tools that read it — `list_sections`,
+`read_section` and `search` — so it cannot ask for a change. The agent mode
+offers all six tools and may propose changes, which the user then accepts
+or rejects. The mode is kept by what the model is given rather than by a
+check afterwards, so there is one path through the loop for both.
+
+**The model.** The models of every provider are in one list, grouped by the
+provider they belong to, and choosing one chooses its provider as well,
+because that is the pair the request needs. The choice is written to the
+configuration, so it is still the one in use the next time the app is
+opened. A provider may still be given a model by hand in the settings, for
+a server the app knows nothing about.
+
+**The context ring.** The conversation is kept: the finished turns are
+resent with every run, so the conversation grows as the work goes on. The
+ring shows how much of the model's context it takes up. It needs two
+numbers:
+
+- how much is used, which the provider reports and the app passes on;
+- how large the context is, which comes from the models.dev catalogue.
+
+The ring is drawn only when both are known. A provider that reports nothing
+— a local server that ignores the request — leaves the size to be estimated
+from the text, and the ring says that it is an estimate. A model the
+catalogue does not know has no window, and then no ring is drawn at all: a
+ring against a size nobody knows would be a number that cannot be stood
+behind.
+
+**New chat.** Empties the conversation, and the ring with it.
+
+## The model catalogue
+
+The sizes of the models are not in the app, because they change as
+providers release models. They are read from [models.dev](https://models.dev/)
+and kept in the configuration folder:
+
+```
+~/.yuemi-office/
+├── config.json         the providers, the active model, the settings
+├── credentials.json    the API keys, one per provider
+└── models-cache.json   the sizes of the models, from models.dev
+```
+
+The catalogue is one document for every provider, so it is fetched once and
+kept for a day rather than fetched for every question. A model is looked up
+under the provider that offers it, and a model of a provider the catalogue
+does not know — an OpenRouter address the user added by hand, say — is
+looked up by its name under any provider, because the model is the same one
+whoever serves it. The fetch is made by the shell rather than by the
+webview, for the same reason the keys are: the configuration folder is
+already where the app keeps what it needs.
+

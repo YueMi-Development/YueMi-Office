@@ -760,6 +760,107 @@ input:focus-visible {
 
 /* The chat with the assistant. */
 
+.chat-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+}
+
+.chat-modes {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.chat-mode {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 3px 10px;
+}
+
+.chat-mode + .chat-mode {
+  border-left: 1px solid var(--border);
+}
+
+.chat-mode-active {
+  background: var(--surface);
+  color: var(--text);
+}
+
+.chat-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.chat-picker-label {
+  color: var(--text-muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.chat-picker-select {
+  max-width: 180px;
+  padding: 3px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+}
+
+.chat-new {
+  margin-left: auto;
+  font-size: 11px;
+  padding: 3px 8px;
+}
+
+.chat-donut {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.chat-donut svg {
+  flex: 0 0 auto;
+}
+
+.chat-donut-track {
+  stroke: var(--border);
+}
+
+.chat-donut-fill {
+  stroke: var(--accent);
+}
+
+.chat-donut-warn .chat-donut-fill {
+  stroke: #b45309;
+}
+
+.chat-donut-danger .chat-donut-fill {
+  stroke: var(--danger);
+}
+
+.chat-donut-text {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
 .chat-panel {
   display: flex;
   flex-direction: column;

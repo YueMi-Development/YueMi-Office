@@ -389,6 +389,15 @@ export interface ToolCall {
   arguments: Record<string, unknown>;
 }
 
+/**
+ * How the assistant is running.
+ *
+ * `chat` answers questions about the document and may read it, but never
+ * proposes a change. `agent` may also propose changes, which the user
+ * then accepts or rejects.
+ */
+export type AssistantMode = 'chat' | 'agent';
+
 /** The request the app sends to start a run of the assistant. */
 export interface ChatRequest {
   /** The conversation so far, oldest first. */
@@ -407,6 +416,38 @@ export interface ChatRequest {
   providerId?: string;
   /** Which model to use, when the user picked one. */
   model?: string;
+  /** How the assistant is running. */
+  mode?: AssistantMode;
+}
+
+/**
+ * How much of a model's context a turn used.
+ *
+ * The numbers come from the provider, which is the only place that knows
+ * them.
+ */
+export interface TokenUsage {
+  /** The tokens the conversation took up when the turn was sent. */
+  inputTokens: number;
+  /** The tokens the answer took up. */
+  outputTokens: number;
+}
+
+/**
+ * How large a model's context is.
+ *
+ * The sizes come from the models.dev catalogue; a model the catalogue does
+ * not know has no window, and nothing is guessed.
+ */
+export interface ModelWindow {
+  /** Which provider the model was found under. */
+  providerId: string;
+  /** The model's name. */
+  model: string;
+  /** How many tokens the model can take at once. */
+  contextTokens: number;
+  /** How many tokens the model may answer with. */
+  outputTokens: number | null;
 }
 
 /** What a run of the assistant tells the app. */
@@ -423,6 +464,7 @@ export type AssistantEvent =
     }
   | { type: 'edit'; edit: ProposedEdit }
   | { type: 'pages'; pageCount: number }
+  | { type: 'usage'; usage: TokenUsage }
   | { type: 'done' }
   | { type: 'error'; message: string };
 

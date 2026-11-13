@@ -1,5 +1,5 @@
 import { Channel, invoke } from '@tauri-apps/api/core';
-import type { AssistantEvent, ChatMessage, ChatRequest } from '@yuemi/protocol';
+import type { AssistantEvent, AssistantMode, ChatMessage, ChatRequest } from '@yuemi/protocol';
 
 import { loadProjectBinaries } from './projectAssets';
 import { useProjectStore } from '../state/projectStore';
@@ -23,6 +23,8 @@ export interface RunOptions {
   providerId?: string;
   /** Which model to use, when the user picked one. */
   model?: string;
+  /** How the assistant is running. */
+  mode?: AssistantMode;
   /** Called for every event of the run. */
   onEvent: (event: AssistantEvent) => void;
 }
@@ -48,6 +50,7 @@ async function buildRequest(options: RunOptions): Promise<ChatRequest> {
     serviceUrl: options.serviceUrl,
     providerId: options.providerId,
     model: options.model,
+    mode: options.mode,
   };
 }
 

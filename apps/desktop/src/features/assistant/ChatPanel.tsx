@@ -1,11 +1,15 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import type { AiToolName, AiToolResult, ProposedEdit } from '@yuemi/protocol';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { AiToolName, AiToolResult, ModelWindow, ProposedEdit } from '@yuemi/protocol';
 
+import { ContextDonut } from './ContextDonut';
+import { ModeSwitcher } from './ModeSwitcher';
+import { ModelPicker } from './ModelPicker';
 import { cancelAssistant, runAssistant } from '../../lib/chat';
+import { modelContextWindow } from '../../lib/models';
 import { reasonOf } from '../../lib/tauri';
 import { useAssistantStore } from '../../state/assistantStore';
-import { useChatStore } from '../../state/chatStore';
-import { useConfigStore } from '../../state/configStore';
+import { useChatStore, usageOf } from '../../state/chatStore';
+import { useConfigStore, providerInUse } from '../../state/configStore';
 import { useSettingsStore } from '../../state/settingsStore';
 
 /**
@@ -15,11 +19,17 @@ import { useSettingsStore } from '../../state/settingsStore';
  * grows as it is written. The changes it proposes are shown as differences
  * below the conversation, and each hunk can be accepted or rejected on its
  * own.
+ *
+ * The toolbar at the top says how the assistant is running, which model is
+ * answering, and how much of the model's context the conversation takes up.
  */
 export function ChatPanel() {
   const messages = useChatStore((state) => state.messages);
   const status = useChatStore((state) => state.status);
   const error = useChatStore((state) => state.error);
+  const mode = useChatStore((state) => state.mode);
+  const setMode = useChatStore((state) => state.setMode);
+  const clear = useChatStore((state) => state.clear);
   const addUserMessage = useChatStore((state) => state.addUserMessage);
   const beginRun = useChatStore((state) => state.beginRun);
   const handleEvent = useChatStore((state) => state.handleEvent);
@@ -31,18 +41,45 @@ export function ChatPanel() {
 
   const config = useConfigStore((state) => state.config);
   const loadConfig = useConfigStore((state) => state.load);
-  const activeProvider = useConfigStore((state) => state.activeProvider);
 
   const serviceUrl = useSettingsStore((state) => state.serviceUrl);
 
   const [draft, setDraft] = useState('');
+  const [modelWindow, setModelWindow] = useState<ModelWindow | null>(null);
   const bottom = useRef<HTMLDivElement | null>(null);
+
+  const provider = useMemo(() => providerInUse(config), [config]);
+  const reported = useChatStore((state) => state.usage);
+  const transcript = useChatStore((state) => state.transcript);
+  const usage = useMemo(() => usageOf(reported, transcript), [reported, transcript]);
 
   useEffect(() => {
     if (!config) {
       void loadConfig();
     }
   }, [config, loadConfig]);
+
+  // The size of the model's context is looked up when the model changes.
+  // The catalogue is kept by the shell, so this is a lookup and not a
+  // download.
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!provider?.id || !provider.model) {
+      setModelWindow(null);
+      return;
+    }
+
+    void modelContextWindow(provider.id, provider.model).then((found) => {
+      if (!cancelled) {
+        setModelWindow(found);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [provider?.id, provider?.model]);
 
   useEffect(() => {
     // Not every environment has the method, so it is checked rather than
@@ -65,7 +102,7 @@ export function ChatPanel() {
     // that is sent is the transcript as it stands.
     const conversation = useChatStore.getState().transcript;
 
-    const provider = activeProvider();
+    const provider = providerInUse(config);
 
     // The changes and the tool results are collected as the run goes and
     // handed to the store at the end, so a run that proposes several changes
@@ -80,6 +117,7 @@ export function ChatPanel() {
         serviceUrl,
         providerId: provider?.id,
         model: provider?.model,
+        mode: useChatStore.getState().mode,
         onEvent: (event) => {
           if (event.type === 'toolCall') {
             argumentsOf.set(event.id, event.arguments);
@@ -117,7 +155,7 @@ export function ChatPanel() {
     status,
     addUserMessage,
     beginRun,
-    activeProvider,
+    config,
     serviceUrl,
     setPending,
     setToolCalls,
@@ -135,6 +173,31 @@ export function ChatPanel() {
 
   return (
     <div className="chat-panel">
+      <div className="chat-toolbar">
+        <ModeSwitcher mode={mode} onChange={setMode} />
+
+        <ModelPicker
+          providers={config?.providers ?? []}
+          activeProviderId={config?.activeProviderId ?? null}
+          activeModel={config?.activeModel ?? null}
+        />
+
+        <ContextDonut
+          used={usage?.tokens ?? 0}
+          window={modelWindow?.contextTokens ?? null}
+          estimated={usage?.estimated ?? false}
+        />
+
+        <button
+          type="button"
+          className="chat-new"
+          onClick={clear}
+          disabled={messages.length === 0}
+        >
+          New chat
+        </button>
+      </div>
+
       <div className="chat-messages">
         {messages.length === 0 && (
           <p className="chat-empty">

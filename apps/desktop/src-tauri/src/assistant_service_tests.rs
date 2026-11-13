@@ -207,6 +207,7 @@ async fn a_change_to_a_stylesheet_shows_the_rendered_pages() {
         service_url: SERVICE_URL.to_string(),
         provider_id: Some("mock".to_string()),
         model: Some("mock-model".to_string()),
+        mode: None,
     };
 
     run_in(directory.path(), request, channel, CancelFlag::default())
@@ -287,6 +288,7 @@ async fn the_agent_loop_runs_a_real_tool_against_the_real_service() {
         service_url: SERVICE_URL.to_string(),
         provider_id: Some("mock".to_string()),
         model: Some("mock-model".to_string()),
+        mode: None,
     };
 
     run_in(directory.path(), request, channel, CancelFlag::default())
