@@ -30,9 +30,7 @@ TEMPLATE_DIR = (
 )
 
 #: Where the bundled fonts live in the repository.
-FONT_DIR = (
-    Path(__file__).resolve().parents[3] / "apps" / "desktop" / "public" / "fonts"
-)
+FONT_DIR = Path(__file__).resolve().parents[3] / "apps" / "desktop" / "public" / "fonts"
 
 #: The names of the fonts that are bundled with the app.
 BUNDLED_FONTS = {
@@ -70,8 +68,7 @@ def _definitions() -> dict[str, dict]:
 def _render(template_id: str, definition: dict):
     """Render one template the way the app sends it."""
     files = [
-        ProjectFile(path=path, text=text)
-        for path, text in definition["files"].items()
+        ProjectFile(path=path, text=text) for path, text in definition["files"].items()
     ]
 
     fonts: list[ProjectFont] = []
@@ -153,9 +150,7 @@ def test_a_template_bundles_every_font_it_uses(template_id):
 def test_a_template_renders_without_warnings(template_id):
     result = _render(template_id, _definitions()[template_id])
 
-    assert result.warnings == [], [
-        warning.model_dump() for warning in result.warnings
-    ]
+    assert result.warnings == [], [warning.model_dump() for warning in result.warnings]
 
 
 @pytest.mark.parametrize("template_id", TEMPLATE_IDS)

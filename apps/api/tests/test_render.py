@@ -73,8 +73,7 @@ def test_render_honours_landscape_orientation(client, sample_request):
 def test_render_applies_user_stylesheet(client, sample_request):
     """The project's CSS must affect the output, not just be accepted."""
     sample_request["files"][1]["text"] = (
-        "body { font-size: 30pt; }\n"
-        "@page { size: A5; }\n"
+        "body { font-size: 30pt; }\n@page { size: A5; }\n"
     )
 
     response = client.post("/v1/render", json=sample_request)

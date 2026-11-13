@@ -38,7 +38,9 @@ def page_files(directory: Path) -> list[Path]:
     return sorted(directory.glob("page-*.png"), key=page_number)
 
 
-def compare_directories(expected: Path, actual: Path, tolerance: float = TOLERANCE) -> list[str]:
+def compare_directories(
+    expected: Path, actual: Path, tolerance: float = TOLERANCE
+) -> list[str]:
     """Compare the pages of two directories.
 
     Args:

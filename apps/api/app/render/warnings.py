@@ -68,14 +68,13 @@ _SYSTEM_FAMILIES = _GENERIC_FAMILIES | {
 
 
 #: The shape WeasyPrint uses when it drops a declaration.
-_IGNORED_DECLARATION = re.compile(
-    r"^Ignored `[^`]+` at \d+:\d+, .+\.$", re.IGNORECASE
-)
+_IGNORED_DECLARATION = re.compile(r"^Ignored `[^`]+` at \d+:\d+, .+\.$", re.IGNORECASE)
 
 #: The other shapes that mean the same thing.
 _IGNORED_SELECTOR = re.compile(
     r"^(Invalid or unsupported selector|Unsupported @page selector|"
-    r"Unsupported @layer selector)", re.IGNORECASE
+    r"Unsupported @layer selector)",
+    re.IGNORECASE,
 )
 
 

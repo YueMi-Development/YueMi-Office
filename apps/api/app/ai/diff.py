@@ -299,7 +299,9 @@ def apply_changes(old_text: str, changes: list[Any]) -> str:
     result: list[str] = []
     cursor = 0
 
-    for raw in sorted((_as_change(change) for change in changes), key=lambda item: item.old_start):
+    for raw in sorted(
+        (_as_change(change) for change in changes), key=lambda item: item.old_start
+    ):
         start = min(max(raw.old_start - 1, 0), len(lines))
         if start < cursor:
             continue

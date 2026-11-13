@@ -40,11 +40,7 @@ def configure_dll_directories() -> list[str]:
 
     configured = os.environ.get("WEASYPRINT_DLL_DIRECTORIES")
     if configured:
-        candidates = [
-            entry.strip()
-            for entry in configured.split(";")
-            if entry.strip()
-        ]
+        candidates = [entry.strip() for entry in configured.split(";") if entry.strip()]
     else:
         candidates = list(DEFAULT_DLL_DIRECTORIES)
 

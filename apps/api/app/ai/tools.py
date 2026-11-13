@@ -222,7 +222,9 @@ def _hunk_to_dict(hunk: DiffHunk) -> dict[str, Any]:
     }
 
 
-def _tool_list_sections(context: ToolContext, arguments: dict[str, Any]) -> dict[str, Any]:
+def _tool_list_sections(
+    context: ToolContext, arguments: dict[str, Any]
+) -> dict[str, Any]:
     """List the sections of the document, in document order."""
     path = _string_argument(arguments, "path")
     files = _markdown_files(context.project, context.files)
@@ -245,7 +247,9 @@ def _tool_list_sections(context: ToolContext, arguments: dict[str, Any]) -> dict
     return {"sections": sections}
 
 
-def _tool_read_section(context: ToolContext, arguments: dict[str, Any]) -> dict[str, Any]:
+def _tool_read_section(
+    context: ToolContext, arguments: dict[str, Any]
+) -> dict[str, Any]:
     """Read a section of the document, or a range of lines of a file."""
     path = _string_argument(arguments, "path")
     if not path:
@@ -320,7 +324,9 @@ def _tool_search(context: ToolContext, arguments: dict[str, Any]) -> dict[str, A
     return {"query": query, "matches": matches, "count": len(matches)}
 
 
-def _tool_propose_edit(context: ToolContext, arguments: dict[str, Any]) -> dict[str, Any]:
+def _tool_propose_edit(
+    context: ToolContext, arguments: dict[str, Any]
+) -> dict[str, Any]:
     """Propose a new version of a file."""
     path = _string_argument(arguments, "path")
     if not path:
@@ -377,9 +383,7 @@ def _tool_set_style(context: ToolContext, arguments: dict[str, Any]) -> dict[str
 
     declarations = arguments.get("declarations")
     if isinstance(declarations, dict):
-        body = "\n".join(
-            f"  {name}: {value};" for name, value in declarations.items()
-        )
+        body = "\n".join(f"  {name}: {value};" for name, value in declarations.items())
     elif isinstance(declarations, str):
         body = declarations.strip()
     else:
@@ -399,7 +403,11 @@ def _tool_set_style(context: ToolContext, arguments: dict[str, Any]) -> dict[str
     found = _find_css_rule(old_text, selector)
     if found is None:
         # The rule is not there yet, so it is added at the end of the sheet.
-        separator = "" if old_text.endswith("\n\n") else ("\n" if old_text.endswith("\n") else "\n\n")
+        separator = (
+            ""
+            if old_text.endswith("\n\n")
+            else ("\n" if old_text.endswith("\n") else "\n\n")
+        )
         new_text = f"{old_text}{separator}{selector} {{\n{body}\n}}\n"
     else:
         start, end = found
@@ -416,7 +424,9 @@ def _tool_set_style(context: ToolContext, arguments: dict[str, Any]) -> dict[str
     }
 
 
-def _tool_render_preview(context: ToolContext, arguments: dict[str, Any]) -> dict[str, Any]:
+def _tool_render_preview(
+    context: ToolContext, arguments: dict[str, Any]
+) -> dict[str, Any]:
     """Render the document and report what the renderer found."""
     try:
         result = render_project(

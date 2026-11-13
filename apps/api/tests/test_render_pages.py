@@ -14,7 +14,9 @@ from app.render.pipeline import RenderError
 
 
 class TestRenderPages:
-    def test_returns_a_page_for_the_document(self, client: TestClient, sample_request: dict):
+    def test_returns_a_page_for_the_document(
+        self, client: TestClient, sample_request: dict
+    ):
         response = client.post("/v1/render/pages", json=sample_request)
 
         assert response.status_code == 200
@@ -53,7 +55,9 @@ class TestRenderPages:
         assert "font.unresolved" in codes, warnings
 
         message = next(
-            warning["message"] for warning in warnings if warning["code"] == "font.unresolved"
+            warning["message"]
+            for warning in warnings
+            if warning["code"] == "font.unresolved"
         )
         assert "No Such Family" in message, message
 

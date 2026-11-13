@@ -45,10 +45,14 @@ def test_the_service_accepts_the_apps_origin(client, origin):
 
 
 @pytest.mark.parametrize("origin", APP_ORIGINS)
-def test_the_service_answers_a_render_from_the_apps_origin(client, sample_request, origin):
+def test_the_service_answers_a_render_from_the_apps_origin(
+    client, sample_request, origin
+):
     """The render itself carries the headers the app needs to read them."""
 
-    response = client.post("/v1/render", json=sample_request, headers={"Origin": origin})
+    response = client.post(
+        "/v1/render", json=sample_request, headers={"Origin": origin}
+    )
 
     assert response.status_code == 200, response.text
     assert response.headers["access-control-allow-origin"] == origin

@@ -371,7 +371,9 @@ class TestDiffHunks:
         hunks = diff_hunks("a\nb\nc\nd\ne\n", "a\nb\nc\nD\ne\n")
 
         assert len(hunks) == 1
-        assert any(line.kind == "context" and line.text == "a" for line in hunks[0].lines)
+        assert any(
+            line.kind == "context" and line.text == "a" for line in hunks[0].lines
+        )
 
     def test_two_changes_far_apart_are_two_hunks(self):
         old = "\n".join(f"line {index}" for index in range(40))
@@ -394,7 +396,9 @@ class TestApplyChanges:
     def test_applies_a_change_to_the_file(self):
         old = "one\ntwo\nthree\n"
 
-        new = apply_changes(old, [{"old_start": 2, "old_count": 1, "new_lines": ["TWO\n"]}])
+        new = apply_changes(
+            old, [{"old_start": 2, "old_count": 1, "new_lines": ["TWO\n"]}]
+        )
 
         assert new == "one\nTWO\nthree\n"
 
@@ -414,7 +418,9 @@ class TestApplyChanges:
     def test_adding_lines_keeps_the_rest_of_the_file(self):
         old = "one\ntwo\n"
 
-        new = apply_changes(old, [{"old_start": 2, "old_count": 0, "new_lines": ["new\n"]}])
+        new = apply_changes(
+            old, [{"old_start": 2, "old_count": 0, "new_lines": ["new\n"]}]
+        )
 
         assert new == "one\nnew\ntwo\n"
 
@@ -450,6 +456,8 @@ class TestApplyChanges:
     def test_a_file_without_a_final_newline_keeps_it_that_way(self):
         old = "one\ntwo"
 
-        new = apply_changes(old, [{"old_start": 2, "old_count": 1, "new_lines": ["TWO"]}])
+        new = apply_changes(
+            old, [{"old_start": 2, "old_count": 1, "new_lines": ["TWO"]}]
+        )
 
         assert new == "one\nTWO"

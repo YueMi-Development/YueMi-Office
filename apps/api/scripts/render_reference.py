@@ -19,7 +19,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from tests.visual_helpers import compare_images, render_folder  # noqa: E402
 
 #: The project the baselines are made from.
-REFERENCE_PROJECT = Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "reference"
+REFERENCE_PROJECT = (
+    Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "reference"
+)
 
 #: Where the baseline pages live.
 BASELINE_DIR = Path(__file__).resolve().parents[1] / "tests" / "visual" / "baseline"
