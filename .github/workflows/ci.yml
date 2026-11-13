@@ -15,6 +15,10 @@ env:
   # The Python version every job uses. It is pinned so the render stack is
   # the same everywhere.
   PYTHON_VERSION: "3.12"
+  # The hooks are for the machine of the person who pushes. A runner has
+  # no push to guard, and installing them there would point the runner at
+  # a directory of hooks that nothing runs.
+  HUSKY: "0"
 
 jobs:
   backend:

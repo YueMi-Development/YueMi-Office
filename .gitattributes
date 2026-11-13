@@ -14,6 +14,12 @@
 
 *.sh text eol=lf
 
+# The hooks have no extension, so the rule above does not reach them. A
+# hook with a carriage return at the end of its lines fails on the first
+# line, and it fails on the machine of the person who pushes rather than
+# on the runner.
+.husky/* text eol=lf
+
 *.json text eol=lf
 *.md text eol=lf
 *.yml text eol=lf

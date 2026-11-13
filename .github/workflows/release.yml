@@ -21,6 +21,10 @@ concurrency:
 
 env:
   BUN_VERSION: "1.3.14"
+  # The hooks are for the machine of the person who pushes. A runner has
+  # no push to guard, and installing them there would point the runner at
+  # a directory of hooks that nothing runs.
+  HUSKY: "0"
 
 jobs:
   release:
