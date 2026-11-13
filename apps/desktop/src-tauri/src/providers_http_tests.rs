@@ -8,15 +8,15 @@
 
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::TcpListener;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::thread;
 
 use serde_json::json;
 
 use crate::config::{ProviderConfig, ProviderProtocol};
 use crate::providers::{
-    anthropic, openai, ChatMessage, ProviderEndpoint, ProviderEvent, ProviderRequest, ProviderTurn,
+    ChatMessage, ProviderEndpoint, ProviderEvent, ProviderRequest, ProviderTurn, anthropic, openai,
 };
 
 /// A server that answers one request with the given body.
@@ -202,7 +202,9 @@ fn request() -> ProviderRequest {
 fn openai_answer() -> String {
     let mut frames = String::new();
     frames.push_str(&sse(&json!({"choices": [{"delta": {"content": "Hello"}}]})));
-    frames.push_str(&sse(&json!({"choices": [{"delta": {"content": " there"}}]})));
+    frames.push_str(&sse(
+        &json!({"choices": [{"delta": {"content": " there"}}]}),
+    ));
     frames.push_str(&sse_done());
     frames
 }
@@ -265,7 +267,10 @@ fn anthropic_answer() -> String {
             "delta": {"type": "text_delta", "text": "Hello"}
         }),
     ));
-    frames.push_str(&anthropic_event("message_stop", &json!({"type": "message_stop"})));
+    frames.push_str(&anthropic_event(
+        "message_stop",
+        &json!({"type": "message_stop"}),
+    ));
     frames
 }
 
@@ -291,7 +296,10 @@ fn anthropic_tool_call() -> String {
             }
         }),
     ));
-    frames.push_str(&anthropic_event("message_stop", &json!({"type": "message_stop"})));
+    frames.push_str(&anthropic_event(
+        "message_stop",
+        &json!({"type": "message_stop"}),
+    ));
     frames
 }
 

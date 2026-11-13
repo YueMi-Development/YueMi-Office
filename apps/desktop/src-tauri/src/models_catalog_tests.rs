@@ -18,8 +18,7 @@ fn raw(text: &str) -> BTreeMap<String, RawCatalogue> {
 
 #[test]
 fn the_catalogue_is_flattened_into_the_providers_and_their_models() {
-    let catalogue = flatten(&raw(
-        r#"{
+    let catalogue = flatten(&raw(r#"{
           "anthropic": {
             "models": {
               "claude-sonnet-4-5": { "limit": { "context": 200000, "output": 64000 } }
@@ -30,8 +29,7 @@ fn the_catalogue_is_flattened_into_the_providers_and_their_models() {
               "gpt-4.1": { "limit": { "context": 1047576, "output": 32768 } }
             }
           }
-        }"#,
-    ));
+        }"#));
 
     let anthropic = catalogue
         .providers
@@ -45,7 +43,10 @@ fn the_catalogue_is_flattened_into_the_providers_and_their_models() {
         })
     );
 
-    let openai = catalogue.providers.get("openai").expect("the openai provider");
+    let openai = catalogue
+        .providers
+        .get("openai")
+        .expect("the openai provider");
     assert_eq!(
         openai.get("gpt-4.1"),
         Some(&ModelSize {
@@ -57,33 +58,32 @@ fn the_catalogue_is_flattened_into_the_providers_and_their_models() {
 
 #[test]
 fn a_model_with_no_size_is_left_out() {
-    let catalogue = flatten(&raw(
-        r#"{
+    let catalogue = flatten(&raw(r#"{
           "openai": {
             "models": {
               "gpt-4.1": { "limit": { "context": 1047576 } },
               "mystery": { "name": "Mystery" }
             }
           }
-        }"#,
-    ));
+        }"#));
 
-    let openai = catalogue.providers.get("openai").expect("the openai provider");
+    let openai = catalogue
+        .providers
+        .get("openai")
+        .expect("the openai provider");
     assert_eq!(openai.len(), 1);
     assert!(!openai.contains_key("mystery"));
 }
 
 #[test]
 fn a_model_is_found_under_the_provider_that_offers_it() {
-    let catalogue = flatten(&raw(
-        r#"{
+    let catalogue = flatten(&raw(r#"{
           "anthropic": {
             "models": {
               "claude-sonnet-4-5": { "limit": { "context": 200000 } }
             }
           }
-        }"#,
-    ));
+        }"#));
 
     let found = lookup(&catalogue, "anthropic", "claude-sonnet-4-5").expect("the model");
 
@@ -95,15 +95,13 @@ fn a_model_is_found_under_the_provider_that_offers_it() {
 
 #[test]
 fn a_model_of_a_provider_the_catalogue_does_not_know_is_found_by_its_name() {
-    let catalogue = flatten(&raw(
-        r#"{
+    let catalogue = flatten(&raw(r#"{
           "openai": {
             "models": {
               "gpt-4.1": { "limit": { "context": 1047576 } }
             }
           }
-        }"#,
-    ));
+        }"#));
 
     // The provider the user added by hand is one the catalogue knows nothing
     // about, but the model it offers is the same one.
@@ -115,15 +113,13 @@ fn a_model_of_a_provider_the_catalogue_does_not_know_is_found_by_its_name() {
 
 #[test]
 fn a_model_that_is_not_in_the_catalogue_has_no_size() {
-    let catalogue = flatten(&raw(
-        r#"{
+    let catalogue = flatten(&raw(r#"{
           "openai": {
             "models": {
               "gpt-4.1": { "limit": { "context": 1047576 } }
             }
           }
-        }"#,
-    ));
+        }"#));
 
     assert!(lookup(&catalogue, "openai", "a-model-nobody-knows").is_none());
     assert!(lookup(&catalogue, "openai", "  ").is_none());

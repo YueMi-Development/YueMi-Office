@@ -178,8 +178,7 @@ pub fn read_config_from(directory: &Path) -> Result<AppConfig, String> {
 
     let text = fs::read_to_string(&path)
         .map_err(|error| format!("Cannot read {}: {error}", path.display()))?;
-    serde_json::from_str(&text)
-        .map_err(|error| format!("{} is not valid: {error}", path.display()))
+    serde_json::from_str(&text).map_err(|error| format!("{} is not valid: {error}", path.display()))
 }
 
 /// The file the configuration is written to first.
@@ -341,9 +340,7 @@ pub fn set_provider_key_in(
 
 /// The key of one provider, if it has one.
 pub fn provider_key_in(directory: &Path, provider_id: &str) -> Option<String> {
-    read_credentials_from(directory)
-        .get(provider_id)
-        .cloned()
+    read_credentials_from(directory).get(provider_id).cloned()
 }
 
 /// A provider as the webview sees it.

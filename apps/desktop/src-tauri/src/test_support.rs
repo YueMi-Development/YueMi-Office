@@ -58,12 +58,7 @@ impl MockServer {
     }
 
     /// Starts the server that answers the requests.
-    fn serve(
-        turns: Vec<String>,
-        repeat: bool,
-        tools: &'static str,
-        session: &'static str,
-    ) -> Self {
+    fn serve(turns: Vec<String>, repeat: bool, tools: &'static str, session: &'static str) -> Self {
         Self::serve_with_delay(turns, repeat, tools, session, None)
     }
 

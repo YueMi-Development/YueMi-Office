@@ -22,7 +22,7 @@ use tauri::ipc::{Channel, InvokeResponseBody};
 
 use crate::config::{AppConfig, ProviderConfig, ProviderProtocol};
 use crate::test_support::MockServer;
-use crate::testing::{run_in, write_config_to, CancelFlag, ChatMessage, ChatRequest};
+use crate::testing::{CancelFlag, ChatMessage, ChatRequest, run_in, write_config_to};
 
 use tempfile::TempDir;
 
@@ -59,7 +59,10 @@ fn mock_provider(base_url: &str) -> ProviderConfig {
 }
 
 /// A channel that keeps every event of a run.
-fn event_channel() -> (Channel<crate::assistant::AssistantEvent>, Arc<Mutex<Vec<Value>>>) {
+fn event_channel() -> (
+    Channel<crate::assistant::AssistantEvent>,
+    Arc<Mutex<Vec<Value>>>,
+) {
     let events = Arc::new(Mutex::new(Vec::new()));
     let recorded = Arc::clone(&events);
 

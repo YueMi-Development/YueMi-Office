@@ -36,7 +36,10 @@ fn a_refused_key_is_reported_as_a_refused_key() {
         message.contains("refused the key"),
         "the message: {message}"
     );
-    assert!(message.contains("Invalid API key"), "the message: {message}");
+    assert!(
+        message.contains("Invalid API key"),
+        "the message: {message}"
+    );
 }
 
 #[test]
@@ -63,10 +66,7 @@ fn an_unknown_endpoint_is_reported_as_such() {
 fn a_rate_limited_request_is_reported_as_rate_limiting() {
     let message = describe_failure(429, "{}");
 
-    assert!(
-        message.contains("rate limiting"),
-        "the message: {message}"
-    );
+    assert!(message.contains("rate limiting"), "the message: {message}");
 }
 
 #[test]
@@ -97,7 +97,10 @@ fn another_failure_names_the_status() {
 fn the_message_of_the_error_is_read() {
     let message = describe_failure(400, r#"{"error":{"message":"model not found"}}"#);
 
-    assert!(message.contains("model not found"), "the message: {message}");
+    assert!(
+        message.contains("model not found"),
+        "the message: {message}"
+    );
 }
 
 #[test]
@@ -114,14 +117,20 @@ fn a_message_at_the_top_level_is_read() {
 fn a_body_that_is_not_json_is_shown_as_it_came() {
     let message = describe_failure(400, "the server is on fire");
 
-    assert!(message.contains("the server is on fire"), "the message: {message}");
+    assert!(
+        message.contains("the server is on fire"),
+        "the message: {message}"
+    );
 }
 
 #[test]
 fn an_empty_body_leaves_the_message_without_a_detail() {
     let message = describe_failure(400, "");
 
-    assert!(message.contains("refused the request"), "the message: {message}");
+    assert!(
+        message.contains("refused the request"),
+        "the message: {message}"
+    );
 }
 
 // A broken connection says nothing about the key, so the cause is kept.
@@ -159,10 +168,7 @@ fn the_endpoint_has_no_trailing_slash() {
 
 #[test]
 fn the_endpoint_carries_the_key() {
-    let endpoint = endpoint_for(
-        &provider("https://example.test"),
-        Some("a-key".to_string()),
-    );
+    let endpoint = endpoint_for(&provider("https://example.test"), Some("a-key".to_string()));
 
     assert_eq!(endpoint.api_key.as_deref(), Some("a-key"));
 }

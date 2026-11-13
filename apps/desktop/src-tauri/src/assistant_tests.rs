@@ -2,7 +2,7 @@
 
 use crate::assistant::Agent;
 use crate::config::{AppConfig, ProviderConfig, ProviderProtocol};
-use crate::testing::{provider_key_in, set_provider_key_in, write_config_to, CancelFlag, ToolCall};
+use crate::testing::{CancelFlag, ToolCall, provider_key_in, set_provider_key_in, write_config_to};
 use serde_json::json;
 
 use tempfile::TempDir;
@@ -130,8 +130,8 @@ fn without_a_choice_the_first_provider_with_a_key_is_used() {
         &["second"],
     );
 
-    let (chosen, _) = Agent::choose_provider(directory.path(), &request(None, None))
-        .expect("the provider");
+    let (chosen, _) =
+        Agent::choose_provider(directory.path(), &request(None, None)).expect("the provider");
 
     assert_eq!(chosen.id, "second");
 }

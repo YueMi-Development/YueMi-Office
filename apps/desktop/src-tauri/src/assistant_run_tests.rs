@@ -14,11 +14,9 @@ use serde_json::{Value, json};
 use tauri::ipc::{Channel, InvokeResponseBody};
 
 use crate::config::{AppConfig, ProviderConfig, ProviderProtocol};
-use crate::test_support::{
-    asking_for_a_tool, MockServer, SESSION, TOOLS, TOOLS_WITH_A_CHANGE,
-};
+use crate::test_support::{MockServer, SESSION, TOOLS, TOOLS_WITH_A_CHANGE, asking_for_a_tool};
 use crate::testing::{
-    run_in, write_config_to, CancelFlag, ChatMessage, ChatRequest, MAX_TOOL_ROUNDS,
+    CancelFlag, ChatMessage, ChatRequest, MAX_TOOL_ROUNDS, run_in, write_config_to,
 };
 
 use tempfile::TempDir;
@@ -69,7 +67,10 @@ fn request(service_url: &str) -> ChatRequest {
 }
 
 /// A channel that keeps every event of a run.
-fn event_channel() -> (Channel<crate::assistant::AssistantEvent>, Arc<Mutex<Vec<Value>>>) {
+fn event_channel() -> (
+    Channel<crate::assistant::AssistantEvent>,
+    Arc<Mutex<Vec<Value>>>,
+) {
     let events = Arc::new(Mutex::new(Vec::new()));
     let recorded = Arc::clone(&events);
 
@@ -271,7 +272,9 @@ async fn a_model_that_keeps_asking_for_tools_is_stopped() {
     );
 
     assert_eq!(
-        events.last().map(|event| event["type"].as_str().unwrap_or_default()),
+        events
+            .last()
+            .map(|event| event["type"].as_str().unwrap_or_default()),
         Some("done"),
         "the run ends: {events:?}"
     );
@@ -323,7 +326,9 @@ async fn a_run_that_is_stopped_does_not_ask_the_model_again() {
     );
 
     assert_eq!(
-        events.last().map(|event| event["type"].as_str().unwrap_or_default()),
+        events
+            .last()
+            .map(|event| event["type"].as_str().unwrap_or_default()),
         Some("done"),
         "the run ends: {events:?}"
     );
@@ -425,9 +430,7 @@ async fn a_provider_without_a_model_says_so() {
 #[tokio::test]
 async fn the_chat_mode_offers_only_the_tools_that_read() {
     let server = MockServer::start(
-        vec![
-            "data: {\"choices\":[{\"delta\":{\"content\":\"It is called A.\"}}]}\n\n",
-        ],
+        vec!["data: {\"choices\":[{\"delta\":{\"content\":\"It is called A.\"}}]}\n\n"],
         TOOLS_WITH_A_CHANGE,
         SESSION,
     );
@@ -438,14 +441,9 @@ async fn the_chat_mode_offers_only_the_tools_that_read() {
     let mut request = request(&server.base_url);
     request.mode = Some("chat".to_string());
 
-    run_in(
-        directory.path(),
-        request,
-        channel,
-        CancelFlag::default(),
-    )
-    .await
-    .expect("the run");
+    run_in(directory.path(), request, channel, CancelFlag::default())
+        .await
+        .expect("the run");
 
     let turns = server.bodies_of("/chat/completions");
     assert_eq!(turns.len(), 1, "the model is asked once");
@@ -463,9 +461,7 @@ async fn the_chat_mode_offers_only_the_tools_that_read() {
 #[tokio::test]
 async fn the_agent_mode_offers_every_tool() {
     let server = MockServer::start(
-        vec![
-            "data: {\"choices\":[{\"delta\":{\"content\":\"It is called A.\"}}]}\n\n",
-        ],
+        vec!["data: {\"choices\":[{\"delta\":{\"content\":\"It is called A.\"}}]}\n\n"],
         TOOLS_WITH_A_CHANGE,
         SESSION,
     );
@@ -476,14 +472,9 @@ async fn the_agent_mode_offers_every_tool() {
     let mut request = request(&server.base_url);
     request.mode = Some("agent".to_string());
 
-    run_in(
-        directory.path(),
-        request,
-        channel,
-        CancelFlag::default(),
-    )
-    .await
-    .expect("the run");
+    run_in(directory.path(), request, channel, CancelFlag::default())
+        .await
+        .expect("the run");
 
     let turns = server.bodies_of("/chat/completions");
     assert_eq!(turns.len(), 1, "the model is asked once");

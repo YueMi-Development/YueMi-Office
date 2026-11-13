@@ -8,8 +8,8 @@
 //! Nothing is written to the project here. The service proposes the changes
 //! and the user decides, which is what the PRD requires (PRD section 7).
 
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -267,7 +267,9 @@ impl Agent {
             .get(&url)
             .send()
             .await
-            .map_err(|error| providers::describe_transport_failure("Could not reach the render service", &error))?;
+            .map_err(|error| {
+                providers::describe_transport_failure("Could not reach the render service", &error)
+            })?;
 
         if !response.status().is_success() {
             return Err(format!(
@@ -339,7 +341,9 @@ impl Agent {
             .json(&body)
             .send()
             .await
-            .map_err(|error| providers::describe_transport_failure("Could not reach the render service", &error))?;
+            .map_err(|error| {
+                providers::describe_transport_failure("Could not reach the render service", &error)
+            })?;
 
         if !response.status().is_success() {
             return Err(format!(
@@ -412,9 +416,7 @@ impl Agent {
             .unwrap_or_default();
 
         for edit in &edits {
-            events.push(AssistantEvent::Edit {
-                edit: edit.clone(),
-            });
+            events.push(AssistantEvent::Edit { edit: edit.clone() });
         }
 
         Ok((events, messages))
@@ -443,7 +445,9 @@ impl Agent {
             .json(&body)
             .send()
             .await
-            .map_err(|error| providers::describe_transport_failure("Could not reach the render service", &error))?;
+            .map_err(|error| {
+                providers::describe_transport_failure("Could not reach the render service", &error)
+            })?;
 
         if !response.status().is_success() {
             return Err(format!(
@@ -593,7 +597,9 @@ pub async fn run_in(
     // second branch in the loop.
     let chat_mode = request.mode.as_deref() == Some("chat");
     if chat_mode {
-        agent.tools.retain(|tool| READ_ONLY_TOOLS.contains(&tool.name.as_str()));
+        agent
+            .tools
+            .retain(|tool| READ_ONLY_TOOLS.contains(&tool.name.as_str()));
     }
 
     let system_prompt = if chat_mode {
@@ -634,8 +640,13 @@ pub async fn run_in(
                 ProviderEvent::Done => {}
             };
 
-            providers::stream_turn(&agent.provider, &agent.endpoint, &provider_request, &mut on_event)
-                .await
+            providers::stream_turn(
+                &agent.provider,
+                &agent.endpoint,
+                &provider_request,
+                &mut on_event,
+            )
+            .await
         };
 
         let turn = match outcome {
@@ -831,7 +842,10 @@ pub async fn test_provider_in(
     timeout: std::time::Duration,
 ) -> Result<String, String> {
     let config = config::read_config_from(directory)?;
-    let saved = config.providers.iter().find(|provider| provider.id == test.id);
+    let saved = config
+        .providers
+        .iter()
+        .find(|provider| provider.id == test.id);
 
     let name = if test.name.trim().is_empty() {
         saved

@@ -5,8 +5,8 @@
 
 use crate::testing::providers::{anthropic, openai, sse};
 use crate::testing::{
-    ChatMessage, ContentPart, PendingCall, ProviderEvent, ProviderRequest, ProviderTurn,
-    ToolCall, ToolDefinition,
+    ChatMessage, ContentPart, PendingCall, ProviderEvent, ProviderRequest, ProviderTurn, ToolCall,
+    ToolDefinition,
 };
 use serde_json::json;
 
@@ -256,12 +256,15 @@ fn the_openai_body_sends_a_tool_result_with_its_call_id() {
 fn the_openai_body_sends_an_image_as_a_data_url() {
     let message = ChatMessage {
         role: "user".to_string(),
-        content: vec![ContentPart::Text {
-            text: "look".to_string(),
-        }, ContentPart::Image {
-            base64: "aGk=".to_string(),
-            mime_type: "image/png".to_string(),
-        }],
+        content: vec![
+            ContentPart::Text {
+                text: "look".to_string(),
+            },
+            ContentPart::Image {
+                base64: "aGk=".to_string(),
+                mime_type: "image/png".to_string(),
+            },
+        ],
         tool_calls: Vec::new(),
         tool_call_id: None,
         tool_name: None,

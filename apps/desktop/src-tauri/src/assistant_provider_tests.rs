@@ -9,7 +9,7 @@ use std::time::Duration;
 
 use crate::config::{AppConfig, ProviderConfig, ProviderProtocol};
 use crate::test_support::{MockServer, SESSION, TOOLS};
-use crate::testing::{set_provider_key_in, test_provider_in, write_config_to, ProviderTest};
+use crate::testing::{ProviderTest, set_provider_key_in, test_provider_in, write_config_to};
 
 use tempfile::TempDir;
 
@@ -74,9 +74,13 @@ async fn a_provider_that_answers_is_reported() {
     let server = ready_server();
     let directory = settings(vec![provider(&server.base_url)]);
 
-    let answer = test_provider_in(directory.path(), &test_of(&server.base_url, "mock-model"), patience())
-        .await
-        .expect("the provider answers");
+    let answer = test_provider_in(
+        directory.path(),
+        &test_of(&server.base_url, "mock-model"),
+        patience(),
+    )
+    .await
+    .expect("the provider answers");
 
     assert!(answer.contains("ready"), "the answer is {answer}");
 }
@@ -87,9 +91,13 @@ async fn the_address_on_screen_is_the_one_that_is_tried() {
     let server = ready_server();
     let directory = settings(vec![provider("http://127.0.0.1:1/v1")]);
 
-    let answer = test_provider_in(directory.path(), &test_of(&server.base_url, "mock-model"), patience())
-        .await
-        .expect("the provider answers");
+    let answer = test_provider_in(
+        directory.path(),
+        &test_of(&server.base_url, "mock-model"),
+        patience(),
+    )
+    .await
+    .expect("the provider answers");
 
     assert!(answer.contains("ready"), "the answer is {answer}");
 }
@@ -99,9 +107,13 @@ async fn the_model_on_screen_is_the_one_that_is_asked_for() {
     let server = ready_server();
     let directory = settings(vec![provider(&server.base_url)]);
 
-    test_provider_in(directory.path(), &test_of(&server.base_url, "another-model"), patience())
-        .await
-        .expect("the provider answers");
+    test_provider_in(
+        directory.path(),
+        &test_of(&server.base_url, "another-model"),
+        patience(),
+    )
+    .await
+    .expect("the provider answers");
 
     let bodies = server.bodies_of("/chat/completions");
     assert!(
@@ -117,9 +129,13 @@ async fn a_provider_that_has_not_been_saved_can_still_be_tried() {
     let server = ready_server();
     let directory = settings(Vec::new());
 
-    let answer = test_provider_in(directory.path(), &test_of(&server.base_url, "mock-model"), patience())
-        .await
-        .expect("the provider answers");
+    let answer = test_provider_in(
+        directory.path(),
+        &test_of(&server.base_url, "mock-model"),
+        patience(),
+    )
+    .await
+    .expect("the provider answers");
 
     assert!(answer.contains("ready"), "the answer is {answer}");
 }
@@ -259,6 +275,9 @@ fn a_payload_without_a_key_is_read() {
     let test: ProviderTest = serde_json::from_value(payload).expect("the payload is read");
 
     assert_eq!(test.protocol, ProviderProtocol::Anthropic);
-    assert!(test.requires_key, "a provider needs a key unless it says otherwise");
+    assert!(
+        test.requires_key,
+        "a provider needs a key unless it says otherwise"
+    );
     assert!(test.api_key.is_none());
 }
