@@ -1,0 +1,45 @@
+# .github/dependabot.yml
+version: 2
+updates:
+  # Bun workspaces (root package.json, apps/desktop, packages/protocol)
+  - package-ecosystem: "bun"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    groups:
+      bun-minor-patch:
+        update-types: ["minor", "patch"]
+
+  # Tauri / Rust
+  - package-ecosystem: "cargo"
+    directory: "/apps/desktop/src-tauri"
+    schedule:
+      interval: "weekly"
+    groups:
+      cargo-minor-patch:
+        update-types: ["minor", "patch"]
+
+  # Render service (Python)
+  - package-ecosystem: "pip"
+    directory: "/apps/api"
+    schedule:
+      interval: "weekly"
+    groups:
+      pip-minor-patch:
+        update-types: ["minor", "patch"]
+
+  # Render service Docker image
+  - package-ecosystem: "docker"
+    directory: "/apps/api"
+    schedule:
+      interval: "weekly"
+
+  # GitHub Actions used in CI and release workflows
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      actions-minor-patch:
+        update-types: ["minor", "patch"]
