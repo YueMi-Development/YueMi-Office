@@ -1,7 +1,7 @@
 //! Tests for the project filesystem commands.
 
 use std::fs;
-use std::path::PathBuf;
+use std::path::Path;
 
 use base64::Engine;
 use tempfile::TempDir;
@@ -11,7 +11,7 @@ fn temp_dir() -> TempDir {
     tempfile::tempdir().expect("cannot create a temporary directory")
 }
 
-fn write(root: &PathBuf, relative: &str, contents: &str) {
+fn write(root: &Path, relative: &str, contents: &str) {
     let path = root.join(relative);
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).expect("cannot create a folder");
@@ -22,8 +22,8 @@ fn write(root: &PathBuf, relative: &str, contents: &str) {
 #[test]
 fn collects_text_files_with_relative_paths() {
     let root = temp_dir();
-    write(&root.path().to_path_buf(), "content/intro.md", "# Intro");
-    write(&root.path().to_path_buf(), "styles/main.css", "body {}");
+    write(root.path(), "content/intro.md", "# Intro");
+    write(root.path(), "styles/main.css", "body {}");
 
     let result = crate::testing::open_project(root.path().to_string_lossy().to_string())
         .expect("open_project failed");
@@ -36,24 +36,30 @@ fn collects_text_files_with_relative_paths() {
 #[test]
 fn skips_hidden_and_vendor_directories() {
     let root = temp_dir();
-    write(&root.path().to_path_buf(), "content/intro.md", "# Intro");
-    write(&root.path().to_path_buf(), "node_modules/pkg/readme.md", "vendor");
-    write(&root.path().to_path_buf(), ".git/config", "[core]");
+    write(root.path(), "content/intro.md", "# Intro");
+    write(root.path(), "node_modules/pkg/readme.md", "vendor");
+    write(root.path(), ".git/config", "[core]");
 
     let result = crate::testing::open_project(root.path().to_string_lossy().to_string())
         .expect("open_project failed");
 
     let paths: Vec<&str> = result.files.iter().map(|file| file.path.as_str()).collect();
     assert!(paths.contains(&"content/intro.md"), "got {paths:?}");
-    assert!(!paths.iter().any(|path| path.contains("node_modules")), "got {paths:?}");
-    assert!(!paths.iter().any(|path| path.contains(".git")), "got {paths:?}");
+    assert!(
+        !paths.iter().any(|path| path.contains("node_modules")),
+        "got {paths:?}"
+    );
+    assert!(
+        !paths.iter().any(|path| path.contains(".git")),
+        "got {paths:?}"
+    );
 }
 
 #[test]
 fn reads_project_json_when_present() {
     let root = temp_dir();
     write(
-        &root.path().to_path_buf(),
+        root.path(),
         "project.json",
         r#"{"schemaVersion":1,"title":"Test"}"#,
     );
@@ -68,7 +74,7 @@ fn reads_project_json_when_present() {
 #[test]
 fn tolerates_a_folder_without_project_json() {
     let root = temp_dir();
-    write(&root.path().to_path_buf(), "content/intro.md", "# Intro");
+    write(root.path(), "content/intro.md", "# Intro");
 
     let result = crate::testing::open_project(root.path().to_string_lossy().to_string())
         .expect("open_project failed");
@@ -101,12 +107,8 @@ fn writes_files_and_project_json() {
         "title": "Written",
     });
 
-    crate::testing::save_project(
-        root_path.to_string_lossy().to_string(),
-        project,
-        files,
-    )
-    .expect("save_project failed");
+    crate::testing::save_project(root_path.to_string_lossy().to_string(), project, files)
+        .expect("save_project failed");
 
     assert_eq!(
         fs::read_to_string(root_path.join("content/intro.md")).unwrap(),

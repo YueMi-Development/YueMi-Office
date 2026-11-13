@@ -260,10 +260,10 @@ pub async fn fetch() -> Result<Catalogue, String> {
 pub async fn catalogue(directory: &Path) -> Option<Catalogue> {
     let cached = read_cache(directory);
 
-    if let Some(catalogue) = &cached {
-        if is_fresh(catalogue) {
-            return Some(catalogue.clone());
-        }
+    if let Some(catalogue) = &cached
+        && is_fresh(catalogue)
+    {
+        return Some(catalogue.clone());
     }
 
     match fetch().await {

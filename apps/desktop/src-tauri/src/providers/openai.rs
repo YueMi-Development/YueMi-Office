@@ -8,8 +8,8 @@ use serde_json::json;
 
 use super::sse::{OpenAiChunk, SseReader};
 use super::{
-    openai_headers, text_of, ChatMessage, ContentPart, ProviderEndpoint, ProviderError,
-    ProviderEvent, ProviderRequest, ProviderTurn, ToolCall,
+    ChatMessage, ContentPart, ProviderEndpoint, ProviderError, ProviderEvent, ProviderRequest,
+    ProviderTurn, ToolCall, openai_headers, text_of,
 };
 
 /// Sends a turn to an OpenAI-compatible server and streams the answer back.
@@ -93,11 +93,11 @@ pub fn handle_event(
     };
 
     for choice in &parsed.choices {
-        if let Some(text) = &choice.delta.content {
-            if !text.is_empty() {
-                turn.text.push_str(text);
-                on_event(ProviderEvent::Text(text.clone()));
-            }
+        if let Some(text) = &choice.delta.content
+            && !text.is_empty()
+        {
+            turn.text.push_str(text);
+            on_event(ProviderEvent::Text(text.clone()));
         }
 
         for delta in &choice.delta.tool_calls {

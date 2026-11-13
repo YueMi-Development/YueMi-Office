@@ -9,8 +9,8 @@ use serde_json::json;
 
 use super::sse::{AnthropicEvent, SseReader};
 use super::{
-    anthropic_headers, text_of, ChatMessage, ContentPart, ProviderEndpoint, ProviderError,
-    ProviderEvent, ProviderRequest, ProviderTurn, ToolCall,
+    ChatMessage, ContentPart, ProviderEndpoint, ProviderError, ProviderEvent, ProviderRequest,
+    ProviderTurn, ToolCall, anthropic_headers, text_of,
 };
 
 /// The most tokens a tool's arguments may use before they are refused.
@@ -102,14 +102,14 @@ pub fn handle_event(
 
     match parsed.kind.as_str() {
         "content_block_start" => {
-            if let Some(block) = parsed.content_block {
-                if block.kind == "tool_use" {
-                    let mut call = PendingCall::new();
-                    call.id = block.id.unwrap_or_default();
-                    call.name = block.name.unwrap_or_default();
-                    call.block_index = parsed.index;
-                    calls.push(call);
-                }
+            if let Some(block) = parsed.content_block
+                && block.kind == "tool_use"
+            {
+                let mut call = PendingCall::new();
+                call.id = block.id.unwrap_or_default();
+                call.name = block.name.unwrap_or_default();
+                call.block_index = parsed.index;
+                calls.push(call);
             }
         }
         "content_block_delta" => {
@@ -117,17 +117,17 @@ pub fn handle_event(
                 return;
             };
 
-            if let Some(text) = delta.text {
-                if !text.is_empty() {
-                    turn.text.push_str(&text);
-                    on_event(ProviderEvent::Text(text));
-                }
+            if let Some(text) = delta.text
+                && !text.is_empty()
+            {
+                turn.text.push_str(&text);
+                on_event(ProviderEvent::Text(text));
             }
 
-            if let Some(partial) = delta.partial_json {
-                if let Some(call) = call_for_block(calls, parsed.index) {
-                    call.push_arguments(&partial);
-                }
+            if let Some(partial) = delta.partial_json
+                && let Some(call) = call_for_block(calls, parsed.index)
+            {
+                call.push_arguments(&partial);
             }
         }
         // The message starting says how much of the context the conversation
@@ -179,11 +179,7 @@ fn call_for_block(calls: &mut [PendingCall], index: Option<usize>) -> Option<&mu
 
 /// Builds the request body.
 pub fn build_body(request: &ProviderRequest) -> serde_json::Value {
-    let messages: Vec<serde_json::Value> = request
-        .messages
-        .iter()
-        .map(|message| build_message(message))
-        .collect();
+    let messages: Vec<serde_json::Value> = request.messages.iter().map(build_message).collect();
 
     let tools: Vec<serde_json::Value> = request
         .tools

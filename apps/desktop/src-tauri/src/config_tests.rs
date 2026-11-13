@@ -3,8 +3,8 @@
 use std::collections::BTreeMap;
 
 use crate::testing::{
-    config_view_from, provider_key_in, read_config_from, read_credentials_from,
-    set_provider_key_in, write_config_to, AppConfig, ProviderConfig, ProviderProtocol,
+    AppConfig, ProviderConfig, ProviderProtocol, config_view_from, provider_key_in,
+    read_config_from, read_credentials_from, set_provider_key_in, write_config_to,
 };
 
 use tempfile::TempDir;
@@ -53,11 +53,12 @@ fn a_folder_with_no_configuration_gives_the_default_one() {
 fn the_configuration_survives_a_write_and_a_read() {
     let directory = folder();
 
-    let mut config = AppConfig::default();
-    config.providers = vec![provider("local")];
-    config.active_provider_id = Some("local".to_string());
-    config.active_model = Some("a-model".to_string());
-    config.ai_enabled = false;
+    let config = AppConfig {
+        providers: vec![provider("local")],
+        active_provider_id: Some("local".to_string()),
+        active_model: Some("a-model".to_string()),
+        ai_enabled: false,
+    };
 
     write_config_to(directory.path(), &config).expect("the configuration is written");
 
@@ -76,8 +77,7 @@ fn a_key_is_kept_out_of_the_configuration_file() {
 
     set_provider_key_in(directory.path(), "local", Some("sk-secret")).expect("the key is set");
 
-    let text = std::fs::read_to_string(directory.path().join("config.json"))
-        .unwrap_or_default();
+    let text = std::fs::read_to_string(directory.path().join("config.json")).unwrap_or_default();
 
     assert!(!text.contains("sk-secret"));
 }
@@ -90,7 +90,10 @@ fn a_key_is_kept_in_the_credentials_file() {
 
     let credentials = read_credentials_from(directory.path());
 
-    assert_eq!(credentials.get("local").map(String::as_str), Some("sk-secret"));
+    assert_eq!(
+        credentials.get("local").map(String::as_str),
+        Some("sk-secret")
+    );
 }
 
 #[test]
@@ -119,8 +122,10 @@ fn the_view_says_whether_a_key_is_there_and_not_what_it_is() {
 
     set_provider_key_in(directory.path(), "local", Some("sk-secret")).expect("the key is set");
 
-    let mut config = AppConfig::default();
-    config.providers = vec![provider("local"), provider("other")];
+    let config = AppConfig {
+        providers: vec![provider("local"), provider("other")],
+        ..AppConfig::default()
+    };
     write_config_to(directory.path(), &config).expect("the configuration is written");
 
     let view = config_view_from(directory.path()).expect("the view");
@@ -264,7 +269,13 @@ fn a_write_leaves_no_temporary_file_behind() {
 
     let names: Vec<String> = std::fs::read_dir(directory.path())
         .expect("the folder is read")
-        .map(|entry| entry.expect("an entry").file_name().to_string_lossy().into_owned())
+        .map(|entry| {
+            entry
+                .expect("an entry")
+                .file_name()
+                .to_string_lossy()
+                .into_owned()
+        })
         .collect();
 
     assert_eq!(names, vec!["config.json".to_string()]);
@@ -274,13 +285,17 @@ fn a_write_leaves_no_temporary_file_behind() {
 fn a_second_write_replaces_the_first() {
     let directory = folder();
 
-    let mut config = AppConfig::default();
-    config.providers = vec![provider("local")];
+    let config = AppConfig {
+        providers: vec![provider("local")],
+        ..AppConfig::default()
+    };
     write_config_to(directory.path(), &config).expect("the configuration is written");
 
-    let mut other = AppConfig::default();
-    other.providers = vec![provider("other")];
-    other.active_provider_id = Some("other".to_string());
+    let other = AppConfig {
+        providers: vec![provider("other")],
+        active_provider_id: Some("other".to_string()),
+        ..AppConfig::default()
+    };
     write_config_to(directory.path(), &other).expect("the configuration is written");
 
     let read = read_config_from(directory.path()).expect("the configuration is read");
@@ -294,8 +309,10 @@ fn a_second_write_replaces_the_first() {
 fn a_write_that_fails_leaves_the_old_configuration_alone() {
     let directory = folder();
 
-    let mut config = AppConfig::default();
-    config.providers = vec![provider("local")];
+    let config = AppConfig {
+        providers: vec![provider("local")],
+        ..AppConfig::default()
+    };
     write_config_to(directory.path(), &config).expect("the configuration is written");
 
     // The configuration is written into a folder that does not exist and
@@ -322,7 +339,13 @@ fn the_keys_are_written_without_leaving_a_temporary_file_behind() {
 
     let names: Vec<String> = std::fs::read_dir(directory.path())
         .expect("the folder is read")
-        .map(|entry| entry.expect("an entry").file_name().to_string_lossy().into_owned())
+        .map(|entry| {
+            entry
+                .expect("an entry")
+                .file_name()
+                .to_string_lossy()
+                .into_owned()
+        })
         .collect();
 
     assert_eq!(names, vec!["credentials.json".to_string()]);
@@ -332,13 +355,15 @@ fn the_keys_are_written_without_leaving_a_temporary_file_behind() {
 fn the_configuration_file_holds_no_key() {
     let directory = folder();
 
-    let mut config = AppConfig::default();
-    config.providers = vec![provider("local")];
+    let config = AppConfig {
+        providers: vec![provider("local")],
+        ..AppConfig::default()
+    };
     write_config_to(directory.path(), &config).expect("the configuration is written");
     set_provider_key_in(directory.path(), "local", Some("sk-secret")).expect("the key is set");
 
-    let text = std::fs::read_to_string(directory.path().join("config.json"))
-        .expect("the file is read");
+    let text =
+        std::fs::read_to_string(directory.path().join("config.json")).expect("the file is read");
 
     assert!(!text.contains("sk-secret"));
 }

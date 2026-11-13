@@ -47,8 +47,8 @@ const TEXT_EXTENSIONS: &[&str] = &["md", "markdown", "css", "json", "txt", "yaml
 /// Extensions treated as project binary assets, which are inlined into a
 /// render request rather than edited in the app.
 const BINARY_EXTENSIONS: &[&str] = &[
-    "png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "ico", "pdf", "woff", "woff2", "ttf",
-    "otf", "eot",
+    "png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "ico", "pdf", "woff", "woff2", "ttf", "otf",
+    "eot",
 ];
 
 /// Directory names that are never scanned.
@@ -75,10 +75,10 @@ fn resolve_in_project(root: &Path, relative: &str) -> Result<PathBuf, String> {
     for component in normalized_relative.components() {
         match component {
             Component::ParentDir => {
-                return Err(format!("Path escapes the project folder: {relative}"))
+                return Err(format!("Path escapes the project folder: {relative}"));
             }
             Component::RootDir | Component::Prefix(_) => {
-                return Err(format!("Path must be relative to the project: {relative}"))
+                return Err(format!("Path must be relative to the project: {relative}"));
             }
             _ => {}
         }
@@ -86,8 +86,8 @@ fn resolve_in_project(root: &Path, relative: &str) -> Result<PathBuf, String> {
 
     // Confirm the resolved path really is inside the root. The file itself
     // may not exist yet, so the closest existing ancestor is checked instead.
-    let canonical_root = fs::canonicalize(root)
-        .map_err(|error| format!("Cannot open project folder: {error}"))?;
+    let canonical_root =
+        fs::canonicalize(root).map_err(|error| format!("Cannot open project folder: {error}"))?;
 
     let mut existing = candidate.as_path();
     while !existing.exists() {
@@ -171,7 +171,9 @@ fn collect_text_files(root: &Path, directory: &Path, files: &mut Vec<DiscoveredF
         Err(_) => return,
     };
 
-    let mut paths: Vec<PathBuf> = entries.filter_map(|entry| entry.ok().map(|e| e.path())).collect();
+    let mut paths: Vec<PathBuf> = entries
+        .filter_map(|entry| entry.ok().map(|e| e.path()))
+        .collect();
     paths.sort();
 
     for path in paths {
@@ -185,29 +187,27 @@ fn collect_text_files(root: &Path, directory: &Path, files: &mut Vec<DiscoveredF
                 continue;
             }
             collect_text_files(root, &path, files);
-        } else if is_text_file(&path) {
-            if let Ok(text) = fs::read_to_string(&path) {
-                files.push(DiscoveredFile {
-                    path: to_relative_string(&path, root),
-                    text,
-                });
-            }
+        } else if is_text_file(&path)
+            && let Ok(text) = fs::read_to_string(&path)
+        {
+            files.push(DiscoveredFile {
+                path: to_relative_string(&path, root),
+                text,
+            });
         }
     }
 }
 
 /// Recursively collects the binary files in a folder.
-fn collect_binary_files(
-    root: &Path,
-    directory: &Path,
-    files: &mut Vec<DiscoveredBinaryFile>,
-) {
+fn collect_binary_files(root: &Path, directory: &Path, files: &mut Vec<DiscoveredBinaryFile>) {
     let entries = match fs::read_dir(directory) {
         Ok(entries) => entries,
         Err(_) => return,
     };
 
-    let mut paths: Vec<PathBuf> = entries.filter_map(|entry| entry.ok().map(|e| e.path())).collect();
+    let mut paths: Vec<PathBuf> = entries
+        .filter_map(|entry| entry.ok().map(|e| e.path()))
+        .collect();
     paths.sort();
 
     for path in paths {
@@ -221,14 +221,14 @@ fn collect_binary_files(
                 continue;
             }
             collect_binary_files(root, &path, files);
-        } else if is_binary_file(&path) {
-            if let Ok(bytes) = fs::read(&path) {
-                files.push(DiscoveredBinaryFile {
-                    path: to_relative_string(&path, root),
-                    base64: base64::engine::general_purpose::STANDARD.encode(&bytes),
-                    mime_type: mime_type_for(&path).to_string(),
-                });
-            }
+        } else if is_binary_file(&path)
+            && let Ok(bytes) = fs::read(&path)
+        {
+            files.push(DiscoveredBinaryFile {
+                path: to_relative_string(&path, root),
+                base64: base64::engine::general_purpose::STANDARD.encode(&bytes),
+                mime_type: mime_type_for(&path).to_string(),
+            });
         }
     }
 }
@@ -374,8 +374,7 @@ pub fn write_project_file(root_path: String, path: String, text: String) -> Resu
 /// Writes a text file the user chose in a save dialog.
 pub fn export_text_file(path: String, contents: String) -> Result<(), String> {
     if let Some(parent) = Path::new(&path).parent() {
-        fs::create_dir_all(parent)
-            .map_err(|error| format!("Cannot create folder: {error}"))?;
+        fs::create_dir_all(parent).map_err(|error| format!("Cannot create folder: {error}"))?;
     }
     fs::write(&path, contents).map_err(|error| format!("Cannot write {path}: {error}"))
 }
@@ -383,8 +382,7 @@ pub fn export_text_file(path: String, contents: String) -> Result<(), String> {
 /// Writes a binary file the user chose in a save dialog.
 pub fn export_binary_file(path: String, contents: Vec<u8>) -> Result<(), String> {
     if let Some(parent) = Path::new(&path).parent() {
-        fs::create_dir_all(parent)
-            .map_err(|error| format!("Cannot create folder: {error}"))?;
+        fs::create_dir_all(parent).map_err(|error| format!("Cannot create folder: {error}"))?;
     }
     fs::write(&path, contents).map_err(|error| format!("Cannot write {path}: {error}"))
 }

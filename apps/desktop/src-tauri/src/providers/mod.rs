@@ -20,7 +20,11 @@ use crate::config::{ProviderConfig, ProviderProtocol};
 
 /// What a part of a message holds.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "camelCase", rename_all_fields = "camelCase")]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
 pub enum ContentPart {
     /// Text the user or the model wrote.
     Text {
@@ -173,6 +177,12 @@ pub struct PendingCall {
     pub block_index: Option<usize>,
 }
 
+impl Default for PendingCall {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PendingCall {
     /// A call with nothing read yet.
     pub fn new() -> Self {
@@ -301,7 +311,8 @@ pub async fn send(
 /// different one — a test has a runtime of its own for every test — so a
 /// kept connection would be dead by the time it was used again.
 pub fn client() -> Result<reqwest::Client, ProviderError> {
-    static CLIENT: std::sync::OnceLock<Result<reqwest::Client, String>> = std::sync::OnceLock::new();
+    static CLIENT: std::sync::OnceLock<Result<reqwest::Client, String>> =
+        std::sync::OnceLock::new();
 
     let stored = CLIENT.get_or_init(|| {
         // The provider of the cryptography is chosen here rather than when
@@ -396,9 +407,7 @@ pub async fn stream_turn(
     on_event: &mut (dyn FnMut(ProviderEvent) + Send),
 ) -> Result<ProviderTurn, ProviderError> {
     match provider.protocol {
-        ProviderProtocol::Anthropic => {
-            anthropic::stream_turn(endpoint, request, on_event).await
-        }
+        ProviderProtocol::Anthropic => anthropic::stream_turn(endpoint, request, on_event).await,
         ProviderProtocol::Openai | ProviderProtocol::OpenaiCompatible => {
             openai::stream_turn(endpoint, request, on_event).await
         }
