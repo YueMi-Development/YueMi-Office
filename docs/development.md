@@ -156,12 +156,28 @@ setters are and where the tests check them. A file that is added to the list
 of version files is a file that the release workflow writes into, so a new
 project has to be added there rather than left to be remembered.
 
+## The linters
+
+The tree is written in three languages, and each of them has a linter that
+comes with its own toolchain: ESLint and Prettier for TypeScript,
+`cargo clippy` and `cargo fmt` for Rust, and `ruff` for Python.
+
+```bash
+bun run lint          # ESLint and Prettier over the TypeScript side
+.github/scripts/lint-rust.sh
+.github/scripts/lint-backend.sh
+```
+
+The CI runs all three in its `lint` job. See
+[docs/linting.md](linting.md) for the rules of each one and for what the
+formatters are kept away from.
+
 ## CI
 
-GitHub Actions runs the backend tests, the frontend tests, a Rust test pass,
-a build on Windows, macOS and Linux, and a visual check that renders the
-reference document on all three operating systems and compares the pages.
-See [.github/workflows/ci.yml](../.github/workflows/ci.yml).
+GitHub Actions runs the linters, the backend tests, the frontend tests, a
+Rust test pass, a build on Windows, macOS and Linux, and a visual check that
+renders the reference document on all three operating systems and compares
+the pages. See [.github/workflows/ci.yml](../.github/workflows/ci.yml).
 
 The work the jobs do is in [.github/scripts](../.github/scripts), one script
 per job rather than a long step in the workflow file. A workflow is a list of
