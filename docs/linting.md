@@ -37,10 +37,39 @@ flowchart LR
     T["The tree"] --> F["lint-frontend.sh<br/>ESLint and Prettier"]
     T --> R["lint-rust.sh<br/>clippy and rustfmt"]
     T --> B["lint-backend.sh<br/>the lint target of the image"]
+    F --> H["The hook: before a push"]
+    R --> H
+    B --> H
     F --> C["The CI job: lint"]
     R --> C
     B --> C
 ```
+
+## Before a push
+
+The same three linters run before a push, through the hook under
+[.husky](../.husky). The CI only speaks after the branch is already on the
+server, so a mistake found here arrives while it is still in the working
+tree.
+
+The hook calls the same scripts the CI calls, so there is one set of lint
+rules and not two.
+
+The hooks are installed by `bun install`, which runs the `prepare` script of
+the root manifest. A new contributor does not have to run anything extra.
+
+The lint of the render service needs a Docker daemon. A machine without one
+still pushes: the CI lints the service on every push, so nothing is lost,
+only moved to the runner. The hook says that it skipped the service, because
+a silent skip reads like a lint that passed.
+
+A push that is deliberate and does not need the lint is pushed with:
+
+```bash
+HUSKY=0 git push
+```
+
+Git's own `--no-verify` does the same thing.
 
 ## The TypeScript side
 

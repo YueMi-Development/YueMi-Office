@@ -168,9 +168,10 @@ bun run lint          # ESLint and Prettier over the TypeScript side
 .github/scripts/lint-backend.sh
 ```
 
-The CI runs all three in its `lint` job. See
-[docs/linting.md](linting.md) for the rules of each one and for what the
-formatters are kept away from.
+The CI runs all three in its `lint` job, and the same three run before a
+push, through the hook under [.husky](../.husky). See
+[docs/linting.md](linting.md) for the rules of each one, for what the
+formatters are kept away from, and for how to push past the hook.
 
 ## CI
 
