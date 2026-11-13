@@ -1,0 +1,20 @@
+# The line endings of the files the workflows run.
+#
+# A shell script with a carriage return at the end of its lines does not
+# run on Linux or macOS: the interpreter reads the return as part of
+# the command. Git is told to keep these files as they are written, so
+# a script that works on the machine that wrote it works on the runner
+# that runs it.
+#
+# The same applies to the workflow files, the manifests and the
+# documentation. Git normalises them to line feeds in the repository and
+# puts them back the way the platform expects in the working tree, so
+# the files look the same on every machine and are stored the same way in
+# the history.
+
+*.sh text eol=lf
+
+*.json text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf

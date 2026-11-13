@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import ci from '../../../../.github/workflows/ci.yml?raw';
+import smokeTest from '../../../../.github/scripts/smoke-test-service.sh?raw';
 import dockerfile from '../../../../apps/api/Dockerfile?raw';
 import compose from '../../../../apps/api/docker-compose.yml?raw';
 import tauriConfig from '../../src-tauri/tauri.conf.json?raw';
@@ -61,9 +62,11 @@ describe('the service port', () => {
   });
 
   it('is the port the CI job smoke-tests the image on', () => {
-    // The job reads the port from the service's code rather than naming it,
-    // so what is checked here is that it reads it at all.
-    expect(ci).toContain('SERVICE_PORT');
+    // The job reads the port from the service's code rather than naming
+    // it, so what is checked here is that it reads it at all. The check
+    // itself is in the script the job runs.
+    expect(smokeTest).toContain('SERVICE_PORT');
+    expect(ci).toContain('smoke-test-service.sh');
   });
 
   it('is not one that everything else on a machine takes', () => {

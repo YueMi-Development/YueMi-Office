@@ -44,7 +44,7 @@ Pango DLLs.
 
 ```bash
 cd apps/api && pytest                    # 144 tests
-bun run test                             # 202 desktop tests, 30 protocol tests
+bun run test                             # 207 desktop tests, 30 protocol tests
 cd apps/desktop/src-tauri && cargo test  # 119 tests
 ```
 

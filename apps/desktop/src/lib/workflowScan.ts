@@ -75,9 +75,15 @@ function jobNameAt(line: string): string | null {
 
 /**
  * Reads the jobs of the workflow.
+ *
+ * The lines are split on both line endings, because a file checked out on
+ * Windows has carriage returns at the end of them and a regular expression
+ * does not match a carriage return with a dot. A workflow read from such a
+ * file would look like a file with no jobs in it, and every rule checked
+ * against it would pass.
  */
 export function readJobs(source: string): Job[] {
-  const lines = source.split('\n');
+  const lines = source.split(/\r?\n/);
   const jobs: Job[] = [];
 
   let current: Job | null = null;
@@ -236,6 +242,17 @@ export function usesContinuation(command: string[]): boolean {
   return command.some((line) => line.trimEnd().endsWith('\\'));
 }
 
+/**
+ * Whether a step runs one of the scripts under `.github/scripts`.
+ *
+ * Those scripts are shell scripts, and a runner on Windows runs a step in
+ * PowerShell by default, which cannot run them. A step that runs one has
+ * to say which shell it wants.
+ */
+export function runsAShellScript(step: Step): boolean {
+  return step.command.some((line) => line.includes('.github/scripts/'));
+}
+
 /** The steps that would break on a Windows runner. */
 export function brokenSteps(jobs: Job[]): string[] {
   const broken: string[] = [];
@@ -246,19 +263,29 @@ export function brokenSteps(jobs: Job[]): string[] {
     }
 
     for (const step of job.steps) {
-      if (!usesContinuation(step.command)) {
+      if (isKeptOffWindows(step)) {
         continue;
       }
 
-      if (asksForBash(step) || isKeptOffWindows(step)) {
+      // A shell script needs a shell that can run one.
+      if (runsAShellScript(step) && !asksForBash(step)) {
+        broken.push(
+          `${job.name} / ${step.name || 'a step'} (line ${step.line}): ` +
+            'the scripts under .github/scripts are shell scripts, so the ' +
+            'step has to say `shell: bash`',
+        );
         continue;
       }
 
-      broken.push(
-        `${job.name} / ${step.name || 'a step'} (line ${step.line}): ` +
-          'a command spread over several lines needs a shell that reads a ' +
-          'backslash as a continuation, so the step has to say `shell: bash`',
-      );
+      // A command spread over several lines needs a shell that reads a
+      // backslash as a continuation.
+      if (usesContinuation(step.command) && !asksForBash(step)) {
+        broken.push(
+          `${job.name} / ${step.name || 'a step'} (line ${step.line}): ` +
+            'a command spread over several lines needs a shell that reads a ' +
+            'backslash as a continuation, so the step has to say `shell: bash`',
+        );
+      }
     }
   }
 

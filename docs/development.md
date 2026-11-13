@@ -53,7 +53,7 @@ keeps the two in step.
 
 ```bash
 cd apps/api && pytest                    # 144 tests
-bun run test                             # 202 desktop tests, 30 protocol tests
+bun run test                             # 207 desktop tests, 30 protocol tests
 cd apps/desktop/src-tauri && cargo test  # 119 tests
 ```
 
@@ -96,11 +96,16 @@ a build on Windows, macOS and Linux, and a visual check that renders the
 reference document on all three operating systems and compares the pages.
 See [.github/workflows/ci.yml](../.github/workflows/ci.yml).
 
+The work the jobs do is in [.github/scripts](../.github/scripts), one script
+per job rather than a long step in the workflow file. A workflow is a list of
+steps, and a step that is forty lines of shell is not a step. The scripts
+are shell scripts, so a step that runs one asks for bash.
+
 The visual job asks for bash on purpose. A runner on Windows runs a step in
-PowerShell by default, and PowerShell does not read a trailing backslash as a
-line continuation, so a command spread over several lines that way never
-parses there. A test checks that rule for the whole workflow file, because
-nothing else in the suite looks at it.
+PowerShell by default, and PowerShell cannot run a shell script, nor does
+it read a trailing backslash as a line continuation. A test checks that
+rule for the whole workflow file, because nothing else in the suite looks
+at it.
 
 The backend tests run inside the render image, because the visual baselines
 were produced by exactly that stack: the same Debian release, the same
@@ -115,6 +120,11 @@ a version — `v1.0.0` or `v1.0.0-beta` — runs
 [.github/workflows/release.yml](../.github/workflows/release.yml), which builds
 the installers for Windows, macOS and Linux and attaches them to a GitHub
 Release. A tag with a dash in it is published as a pre-release.
+
+The tag is read by `.github/scripts/version-from-tag.sh`, which refuses a tag
+that does not name a version, and the release is created by
+`.github/scripts/create-release.sh`, which creates it once so that the three
+platform jobs upload into it rather than racing each other to create it.
 
 ```mermaid
 flowchart LR

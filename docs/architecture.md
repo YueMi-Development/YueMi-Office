@@ -17,6 +17,14 @@ the API keys. The render service is a separate process, because the layout
 engine is Python and because a service that can be run on its own is a
 service that can be tested on its own.
 
+## The name
+
+The product is called **YueMi Office**, and that is the name the README
+gives it. The lowercase `yuemi` is the name of the built artefact: the
+window title, the bundle identifier, the file names of the installers and
+the release names. The two are different things, and the product name is
+not the one that changes.
+
 ```mermaid
 flowchart LR
     U["The user"] --> W["Webview<br/>editor, preview, chat"]

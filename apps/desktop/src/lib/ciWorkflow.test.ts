@@ -32,6 +32,20 @@ describe('the workflow', () => {
     expect(jobs.map((job) => job.name)).toContain('visual');
   });
 
+  it('is read as jobs when the file has Windows line endings', () => {
+    // A regular expression does not match a carriage return with a dot,
+    // so a workflow read from a file with Windows line endings used to
+    // look like a file with no jobs in it. Every rule checked against it
+    // then passed, because there was nothing to check.
+    //
+    // The repository is checked out with Windows line endings on Windows,
+    // so this is the shape the file actually has there.
+    const jobs = readJobs(ci.replace(/\r?\n/g, '\r\n'));
+
+    expect(jobs.map((job) => job.name)).toContain('visual');
+    expect(jobs.find((job) => job.name === 'visual')?.runsOn).not.toBe('');
+  });
+
   it('has a step that would break on a Windows runner', () => {
     // The rule is only worth having if it can fail, so the scanner is
     // shown a workflow with the mistake in it.
@@ -74,6 +88,44 @@ describe('the workflow', () => {
 
   it('has no step that breaks on a Windows runner', () => {
     expect(brokenSteps(readJobs(ci))).toEqual([]);
+  });
+
+  it('catches a step that runs a shell script without saying so', () => {
+    // The scripts under `.github/scripts` are shell scripts, and a runner
+    // on Windows runs a step in PowerShell by default. The rule is only
+    // worth having if it can fail, so the scanner is shown a workflow with
+    // the mistake in it.
+    const broken = brokenSteps(
+      readJobs(
+        [
+          '  visual:',
+          '    runs-on: windows-latest',
+          '    steps:',
+          '      - name: Compare',
+          '        run: .github/scripts/visual-check.sh',
+        ].join('\n'),
+      ),
+    );
+
+    expect(broken).toHaveLength(1);
+    expect(broken[0]).toContain('shell: bash');
+  });
+
+  it('accepts a step that runs a shell script and says so', () => {
+    const broken = brokenSteps(
+      readJobs(
+        [
+          '  visual:',
+          '    runs-on: windows-latest',
+          '    steps:',
+          '      - name: Compare',
+          '        shell: bash',
+          '        run: .github/scripts/visual-check.sh',
+        ].join('\n'),
+      ),
+    );
+
+    expect(broken).toEqual([]);
   });
 
   it('asks for bash where the visual check runs', () => {

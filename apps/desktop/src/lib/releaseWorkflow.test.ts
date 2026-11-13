@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import release from '../../../../.github/workflows/release.yml?raw';
+import createRelease from '../../../../.github/scripts/create-release.sh?raw';
+import versionFromTag from '../../../../.github/scripts/version-from-tag.sh?raw';
 import { brokenSteps, readJobs } from './workflowScan';
 
 /**
@@ -10,6 +12,11 @@ import { brokenSteps, readJobs } from './workflowScan';
  * must not run on an ordinary push. The three platform jobs upload into
  * one release, and the release is created once, before them, so that they
  * do not race each other.
+ *
+ * The work of reading the version and creating the release is in the
+ * scripts under `.github/scripts`, because a workflow file is a list of
+ * steps and a step that is forty lines of shell is not a step. The rules
+ * that matter to the release are therefore checked against both.
  */
 
 describe('the release workflow', () => {
@@ -50,9 +57,25 @@ describe('the release workflow', () => {
     expect(release).toContain('releaseId:');
   });
 
+  it('creates the release with the script', () => {
+    // The script does the work, so the workflow has to run it rather than
+    // carrying a copy of it.
+    expect(release).toContain('create-release.sh');
+    expect(createRelease).toContain('releases/tags/');
+  });
+
+  it('reads the version with the script', () => {
+    // The script does the work, so the workflow has to run it rather than
+    // carrying a copy of it.
+    expect(release).toContain('version-from-tag.sh');
+    expect(versionFromTag).toContain('does not name a version');
+  });
+
   it('publishes a pre-release as a pre-release', () => {
-    expect(release).toContain('prerelease=true');
-    expect(release).toContain('prerelease=false');
+    // The rule is in the script that reads the tag, because that is
+    // where the version is decided.
+    expect(versionFromTag).toContain('prerelease=true');
+    expect(versionFromTag).toContain('prerelease=false');
   });
 
   it('does not publish an updater manifest', () => {
@@ -71,12 +94,17 @@ describe('the release workflow', () => {
     expect(brokenSteps(readJobs(release))).toEqual([]);
   });
 
-  it('asks for bash where a command is spread over several lines', () => {
+  it('asks for bash where a shell script is run', () => {
+    // The scripts under `.github/scripts` are shell scripts, and a runner
+    // on Windows runs a step in PowerShell by default, which cannot run
+    // one. The step that runs the release scripts is named here so that
+    // removing the shell from it is a failure with a message that says
+    // what is wrong.
     const prepare = readJobs(release).find((job) => job.name === 'release');
     const steps = prepare?.steps ?? [];
 
     for (const step of steps) {
-      if (step.command.some((line) => line.trimEnd().endsWith('\\'))) {
+      if (step.command.some((line) => line.includes('.github/scripts/'))) {
         expect(step.shell).toBe('bash');
       }
     }
