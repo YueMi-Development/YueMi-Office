@@ -101,10 +101,17 @@ jobs:
       # The pages are compared, not the PDF bytes. The bytes differ between
       # operating systems because Pango writes its own metadata into the
       # file, while the rendered pages are the same document.
+      #
+      # Bash is asked for on purpose. A runner on Windows runs a step in
+      # PowerShell by default, and PowerShell does not read a trailing
+      # backslash as a line continuation, so the command below would not
+      # parse there.
       - name: Render the reference document
+        shell: bash
         run: python scripts/render_pages.py tests/fixtures/reference .tmp-pages
 
       - name: Compare the pages with the baselines
+        shell: bash
         run: |
           python scripts/compare_pages.py \
             tests/visual/baseline/reference .tmp-pages \
