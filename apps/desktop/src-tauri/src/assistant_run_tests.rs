@@ -8,13 +8,16 @@
 //! through the channel the webview listens to.
 
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use serde_json::{Value, json};
 use tauri::ipc::{Channel, InvokeResponseBody};
 
 use crate::config::{AppConfig, ProviderConfig, ProviderProtocol};
-use crate::test_support::{MockServer, SESSION, TOOLS};
-use crate::testing::{run_in, write_config_to, CancelFlag, ChatMessage, ChatRequest};
+use crate::test_support::{asking_for_a_tool, MockServer, SESSION, TOOLS};
+use crate::testing::{
+    run_in, write_config_to, CancelFlag, ChatMessage, ChatRequest, MAX_TOOL_ROUNDS,
+};
 
 use tempfile::TempDir;
 
@@ -219,4 +222,194 @@ async fn a_provider_that_fails_is_reported_to_the_webview() {
             .contains("Could not reach the provider"),
         "the message: {events:?}"
     );
+}
+
+#[tokio::test]
+async fn a_model_that_keeps_asking_for_tools_is_stopped() {
+    let turn = asking_for_a_tool();
+    let server = MockServer::start_always_calling(&turn, TOOLS, SESSION);
+
+    let directory = settings(&server);
+    let (channel, events) = event_channel();
+
+    run_in(
+        directory.path(),
+        request(&server.base_url),
+        channel,
+        CancelFlag::default(),
+    )
+    .await
+    .expect("the run");
+
+    let events = events.lock().expect("the events").clone();
+
+    // The model was asked as many times as the run allows, and not once
+    // more, because a model that keeps asking for tools would otherwise
+    // run forever.
+    let turns = server.bodies_of("/chat/completions");
+    assert_eq!(
+        turns.len(),
+        MAX_TOOL_ROUNDS,
+        "the model was asked {len} times",
+        len = turns.len()
+    );
+
+    let messages = events
+        .iter()
+        .filter(|event| event["type"] == "error")
+        .filter_map(|event| event["message"].as_str())
+        .collect::<Vec<_>>();
+
+    assert!(
+        messages
+            .iter()
+            .any(|message| message.contains("asked for more tools than one run allows")),
+        "the messages: {messages:?}"
+    );
+
+    assert_eq!(
+        events.last().map(|event| event["type"].as_str().unwrap_or_default()),
+        Some("done"),
+        "the run ends: {events:?}"
+    );
+}
+
+#[tokio::test]
+async fn a_run_that_is_stopped_does_not_ask_the_model_again() {
+    let turn = asking_for_a_tool();
+    let server = MockServer::start_slowly(
+        vec![turn.as_str()],
+        Duration::from_millis(300),
+        TOOLS,
+        SESSION,
+    );
+
+    let directory = settings(&server);
+    let (channel, events) = event_channel();
+
+    let cancel = CancelFlag::default();
+    let stopper = cancel.clone();
+
+    // The run and the stopping of it go on together, because the run has to
+    // be stopped while the model is still thinking.
+    let (run, _) = tokio::join!(
+        run_in(
+            directory.path(),
+            request(&server.base_url),
+            channel,
+            cancel.clone()
+        ),
+        async move {
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            stopper.cancel();
+        }
+    );
+
+    run.expect("the run");
+
+    let events = events.lock().expect("the events").clone();
+
+    // The run asked the model once and stopped, rather than going on for
+    // every round the run allows.
+    let turns = server.bodies_of("/chat/completions");
+    assert_eq!(
+        turns.len(),
+        1,
+        "the model was asked {len} times",
+        len = turns.len()
+    );
+
+    assert_eq!(
+        events.last().map(|event| event["type"].as_str().unwrap_or_default()),
+        Some("done"),
+        "the run ends: {events:?}"
+    );
+}
+
+#[tokio::test]
+async fn a_run_with_the_assistant_turned_off_sends_nothing() {
+    let server = MockServer::start(vec![], TOOLS, SESSION);
+
+    let directory = TempDir::new().expect("a temporary folder");
+
+    let config = AppConfig {
+        providers: vec![provider(&server.base_url)],
+        active_provider_id: Some("mock".to_string()),
+        active_model: Some("mock-model".to_string()),
+        ai_enabled: false,
+    };
+    write_config_to(directory.path(), &config).expect("the configuration is written");
+
+    let (channel, events) = event_channel();
+
+    run_in(
+        directory.path(),
+        request(&server.base_url),
+        channel,
+        CancelFlag::default(),
+    )
+    .await
+    .expect("the run");
+
+    let events = events.lock().expect("the events").clone();
+
+    assert_eq!(kinds(&events), vec!["error", "done"]);
+    assert!(
+        events[0]["message"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("turned off in the settings"),
+        "the message: {events:?}"
+    );
+
+    // The document never left the machine, because nothing was asked of the
+    // model and nothing was asked of the service.
+    assert!(
+        server.bodies_of("/chat/completions").is_empty(),
+        "the model was asked"
+    );
+    assert!(
+        server.bodies_of("/v1/ai/tools").is_empty(),
+        "the service was asked"
+    );
+}
+
+#[tokio::test]
+async fn a_provider_without_a_model_says_so() {
+    let server = MockServer::start(vec![], TOOLS, SESSION);
+
+    let directory = TempDir::new().expect("a temporary folder");
+
+    let mut without_a_model = provider(&server.base_url);
+    without_a_model.model = String::new();
+
+    let config = AppConfig {
+        providers: vec![without_a_model],
+        active_provider_id: Some("mock".to_string()),
+        active_model: None,
+        ai_enabled: true,
+    };
+    write_config_to(directory.path(), &config).expect("the configuration is written");
+
+    let (channel, events) = event_channel();
+
+    let mut request = request(&server.base_url);
+    request.model = None;
+
+    run_in(directory.path(), request, channel, CancelFlag::default())
+        .await
+        .expect("the run");
+
+    let events = events.lock().expect("the events").clone();
+
+    assert_eq!(kinds(&events), vec!["error", "done"]);
+    assert!(
+        events[0]["message"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("has no model chosen"),
+        "the message: {events:?}"
+    );
+
+    assert!(server.bodies_of("/chat/completions").is_empty());
 }

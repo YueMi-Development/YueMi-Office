@@ -331,7 +331,12 @@ pub fn describe_transport_failure(context: &str, error: &reqwest::Error) -> Stri
 }
 
 /// Turns a failed response into a message worth showing.
-fn describe_failure(status: u16, body: &str) -> String {
+///
+/// The status says what kind of failure it was, and the body says what the
+/// provider said about it. The body is read in the shapes the providers use,
+/// and anything unreadable is shown as it came, because a message the user
+/// cannot read is still better than none.
+pub fn describe_failure(status: u16, body: &str) -> String {
     let detail = serde_json::from_str::<serde_json::Value>(body)
         .ok()
         .and_then(|value| {

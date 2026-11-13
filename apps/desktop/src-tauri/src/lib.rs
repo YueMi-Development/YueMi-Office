@@ -19,11 +19,15 @@ mod project_tests;
 mod providers_http_tests;
 #[cfg(test)]
 mod providers_tests;
+#[cfg(test)]
+mod providers_error_tests;
 
 /// The filesystem commands, exposed so they can be tested directly.
 pub mod testing {
     pub use crate::providers;
-    pub use crate::assistant::{run, run_in, AssistantEvent, CancelFlag, ChatRequest};
+    pub use crate::assistant::{
+        run, run_in, Agent, AssistantEvent, CancelFlag, ChatRequest, MAX_TOOL_ROUNDS,
+    };
     pub use crate::config::{
         config_view_from, provider_key, provider_key_in, read_config,
         read_config_from, read_credentials, read_credentials_from, set_provider_key,

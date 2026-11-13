@@ -26,13 +26,58 @@ impl MockServer {
     ///
     /// The provider answers with the given turns, one per request, and the
     /// service answers with the given tools and the given session.
-    pub fn start(turns: Vec<&'static str>, tools: &'static str, session: &'static str) -> Self {
+    pub fn start(turns: Vec<&str>, tools: &'static str, session: &'static str) -> Self {
+        let turns = turns.iter().map(|turn| turn.to_string()).collect();
+        Self::serve(turns, false, tools, session)
+    }
+
+    /// Starts a server that answers with the same turn every time.
+    ///
+    /// The run loop goes on asking for tools as long as the model asks for
+    /// them, so a test that needs the loop to keep going needs a server that
+    /// never stops answering with a call.
+    pub fn start_always_calling(turn: &str, tools: &'static str, session: &'static str) -> Self {
+        Self::serve(vec![turn.to_string()], true, tools, session)
+    }
+
+    /// Starts a server that takes its time before it answers.
+    ///
+    /// A run that is stopped while the model is still thinking needs the
+    /// answer to be slow, otherwise the run is over before the test can stop
+    /// it.
+    pub fn start_slowly(
+        turns: Vec<&str>,
+        delay: std::time::Duration,
+        tools: &'static str,
+        session: &'static str,
+    ) -> Self {
+        let turns = turns.iter().map(|turn| turn.to_string()).collect();
+        Self::serve_with_delay(turns, false, tools, session, Some(delay))
+    }
+
+    /// Starts the server that answers the requests.
+    fn serve(
+        turns: Vec<String>,
+        repeat: bool,
+        tools: &'static str,
+        session: &'static str,
+    ) -> Self {
+        Self::serve_with_delay(turns, repeat, tools, session, None)
+    }
+
+    /// Starts the server that answers the requests, taking its time.
+    fn serve_with_delay(
+        turns: Vec<String>,
+        repeat: bool,
+        tools: &'static str,
+        session: &'static str,
+        delay: Option<std::time::Duration>,
+    ) -> Self {
         let listener = TcpListener::bind("127.0.0.1:0").expect("a port to bind");
         let port = listener.local_addr().expect("the address").port();
         let requests = Arc::new(Mutex::new(Vec::new()));
 
         let recorded = Arc::clone(&requests);
-        let turns: Vec<String> = turns.iter().map(|turn| turn.to_string()).collect();
         let tools = tools.to_string();
         let session = session.to_string();
 
@@ -43,12 +88,26 @@ impl MockServer {
                 let Ok(mut stream) = stream else { continue };
                 let path = read_request(&mut stream, &recorded);
 
+                if let Some(delay) = delay {
+                    // The wait is only for the provider, because the test is
+                    // about a run that is stopped while the model is still
+                    // thinking.
+                    if path.starts_with("/chat/completions") {
+                        thread::sleep(delay);
+                    }
+                }
+
                 let response = if path.starts_with("/chat/completions") {
-                    let turn = turns
-                        .get(turn_index)
-                        .cloned()
-                        .unwrap_or_else(|| "data: [DONE]\n\n".to_string());
-                    turn_index += 1;
+                    let turn = if repeat {
+                        turns.first().cloned().unwrap_or_default()
+                    } else {
+                        let turn = turns
+                            .get(turn_index)
+                            .cloned()
+                            .unwrap_or_else(|| "data: [DONE]\n\n".to_string());
+                        turn_index += 1;
+                        turn
+                    };
                     sse(&turn)
                 } else if path.ends_with("/v1/ai/tools") {
                     json_response(200, &tools)
@@ -143,6 +202,30 @@ fn json_response(status: u16, body: &str) -> String {
         body.len(),
         body
     )
+}
+
+/// The turn of a provider that asks for one tool.
+///
+/// The frame is built rather than written out, because the arguments of the
+/// call have to be escaped inside the JSON, and that is easier to get right
+/// when the escaping is done by the library.
+pub fn asking_for_a_tool() -> String {
+    let frame = serde_json::json!({
+        "choices": [{
+            "delta": {
+                "tool_calls": [{
+                    "index": 0,
+                    "id": "call_1",
+                    "function": {
+                        "name": "read_section",
+                        "arguments": serde_json::json!({ "path": "a.md" }).to_string()
+                    }
+                }]
+            }
+        }]
+    });
+
+    format!("data: {frame}\n\n")
 }
 
 /// The tools the mock service offers.

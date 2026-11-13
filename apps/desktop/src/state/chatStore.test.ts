@@ -144,11 +144,60 @@ describe('the chat store', () => {
     expect(useChatStore.getState().error).toBe('The provider refused the key.');
   });
 
+  it('keeps what was said when a run fails', () => {
+    useChatStore.getState().beginRun();
+    useChatStore.getState().handleEvent({ type: 'text', text: 'I looked at the title.' });
+    useChatStore.getState().failRun('The provider refused the key.');
+
+    const messages = useChatStore.getState().messages;
+    expect(messages[messages.length - 1].text).toBe('I looked at the title.');
+  });
+
+  it('marks a run as going on', () => {
+    useChatStore.getState().beginRun();
+
+    expect(useChatStore.getState().status).toBe('running');
+  });
+
+  it('forgets the error of an earlier run when a new one starts', () => {
+    useChatStore.getState().failRun('The provider refused the key.');
+
+    useChatStore.getState().beginRun();
+
+    expect(useChatStore.getState().error).toBeNull();
+  });
+
   it('forgets everything when the conversation is cleared', () => {
     useChatStore.getState().addUserMessage('Something');
     useChatStore.getState().clear();
 
     expect(useChatStore.getState().messages).toEqual([]);
     expect(useChatStore.getState().transcript).toEqual([]);
+  });
+
+  it('forgets the state of the run when the conversation is cleared', () => {
+    useChatStore.getState().beginRun();
+    useChatStore.getState().handleEvent({ type: 'pages', pageCount: 7 });
+    useChatStore.getState().failRun('The provider refused the key.');
+
+    useChatStore.getState().clear();
+
+    expect(useChatStore.getState().status).toBe('idle');
+    expect(useChatStore.getState().error).toBeNull();
+    expect(useChatStore.getState().pageCount).toBeNull();
+  });
+
+  it('gives the assistant the conversation of the finished turns', () => {
+    useChatStore.getState().addUserMessage('What is the title?');
+    useChatStore.getState().beginRun();
+    useChatStore.getState().handleEvent({ type: 'text', text: 'It is The title.' });
+    useChatStore.getState().endRun();
+
+    const messages = useChatStore.getState().toChatMessages();
+
+    expect(messages).toEqual([
+      { role: 'user', content: [{ kind: 'text', text: 'What is the title?' }] },
+      { role: 'assistant', content: [{ kind: 'text', text: 'It is The title.' }] },
+    ]);
   });
 });

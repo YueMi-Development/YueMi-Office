@@ -22,9 +22,20 @@ from tests.visual_helpers import compare_images  # noqa: E402
 TOLERANCE = 0.002
 
 
+def page_number(path: Path) -> int:
+    """The number in the name of a page image."""
+    suffix = path.stem.split("-")[-1]
+    return int(suffix) if suffix.isdigit() else 0
+
+
 def page_files(directory: Path) -> list[Path]:
-    """The page images in a directory, in order."""
-    return sorted(directory.glob("page-*.png"))
+    """The page images in a directory, in order.
+
+    The order is the number in the name rather than the name itself, because
+    the names are sorted as text otherwise, and "page-10" comes before
+    "page-2" that way.
+    """
+    return sorted(directory.glob("page-*.png"), key=page_number)
 
 
 def compare_directories(expected: Path, actual: Path, tolerance: float = TOLERANCE) -> list[str]:

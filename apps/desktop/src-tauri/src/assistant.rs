@@ -130,7 +130,7 @@ pub enum AssistantEvent {
 /// Without a limit a model that keeps asking for the same tool would run
 /// forever. The limit is high enough for real work and low enough that a
 /// loop is noticed.
-const MAX_TOOL_ROUNDS: usize = 12;
+pub const MAX_TOOL_ROUNDS: usize = 12;
 
 /// How many pages are sent back to the model after a layout change.
 ///
@@ -181,7 +181,7 @@ impl Agent {
     ///
     /// The provider the user picked wins; otherwise the first one that has a
     /// key is used, so the app works as soon as one provider is set up.
-    fn choose_provider(
+    pub fn choose_provider(
         directory: &std::path::Path,
         request: &ChatRequest,
     ) -> Result<(ProviderConfig, Option<String>), String> {
@@ -210,7 +210,7 @@ impl Agent {
     }
 
     /// The model to use for a request.
-    fn choose_model(request: &ChatRequest, provider: &ProviderConfig) -> String {
+    pub fn choose_model(request: &ChatRequest, provider: &ProviderConfig) -> String {
         request
             .model
             .clone()
@@ -489,6 +489,28 @@ pub async fn run_in(
     cancel: CancelFlag,
 ) -> Result<(), String> {
     cancel.reset();
+
+    // The setting that turns the assistant off is honoured here rather than
+    // only in the window. The window stops the button from being pressed,
+    // but the setting is a promise about the document's contents, and only
+    // this side knows what a run would send.
+    let config = match config::read_config_from(directory) {
+        Ok(config) => config,
+        Err(message) => {
+            let _ = channel.send(AssistantEvent::Error { message });
+            let _ = channel.send(AssistantEvent::Done);
+            return Ok(());
+        }
+    };
+
+    if !config.ai_enabled {
+        let _ = channel.send(AssistantEvent::Error {
+            message: "The assistant is turned off in the settings, so nothing was sent."
+                .to_string(),
+        });
+        let _ = channel.send(AssistantEvent::Done);
+        return Ok(());
+    }
 
     let (provider, api_key) = match Agent::choose_provider(directory, &request) {
         Ok(chosen) => chosen,
