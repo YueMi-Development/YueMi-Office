@@ -17,6 +17,10 @@ dependencies = [
   "markdown-it-py>=3.0",
   "jinja2>=3.1",
   "pypdf>=4.0",
+  # The assistant looks at the rendered pages, so the PDF is rasterised.
+  # This is separate from the renderer on purpose: the renderer decides the
+  # bytes of the PDF, and a bump here must not change them.
+  "pypdfium2>=4.30",
   "fonttools[brotli]==4.68.0",
 ]
 

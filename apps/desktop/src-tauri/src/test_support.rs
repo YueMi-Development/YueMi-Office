@@ -1,0 +1,174 @@
+//! A server that stands in for the model provider and the render service.
+//!
+//! The tests use it to have the other end of a conversation without a
+//! provider account and without the service running: the requests are
+//! recorded, so a test can see what was sent, and the answers are given, so
+//! a test can see what comes back.
+
+use std::io::{BufRead, BufReader, Read, Write};
+use std::net::TcpListener;
+use std::sync::{Arc, Mutex};
+use std::thread;
+
+/// A server that plays both the model provider and the render service.
+///
+/// The two roles are told apart by the path of the request, which is how
+/// the real thing works as well.
+pub struct MockServer {
+    /// The address the server is on.
+    pub base_url: String,
+    /// The requests the server received, with the path of each.
+    requests: Arc<Mutex<Vec<(String, String)>>>,
+}
+
+impl MockServer {
+    /// Starts a server.
+    ///
+    /// The provider answers with the given turns, one per request, and the
+    /// service answers with the given tools and the given session.
+    pub fn start(turns: Vec<&'static str>, tools: &'static str, session: &'static str) -> Self {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("a port to bind");
+        let port = listener.local_addr().expect("the address").port();
+        let requests = Arc::new(Mutex::new(Vec::new()));
+
+        let recorded = Arc::clone(&requests);
+        let turns: Vec<String> = turns.iter().map(|turn| turn.to_string()).collect();
+        let tools = tools.to_string();
+        let session = session.to_string();
+
+        thread::spawn(move || {
+            let mut turn_index = 0usize;
+
+            for stream in listener.incoming() {
+                let Ok(mut stream) = stream else { continue };
+                let path = read_request(&mut stream, &recorded);
+
+                let response = if path.starts_with("/chat/completions") {
+                    let turn = turns
+                        .get(turn_index)
+                        .cloned()
+                        .unwrap_or_else(|| "data: [DONE]\n\n".to_string());
+                    turn_index += 1;
+                    sse(&turn)
+                } else if path.ends_with("/v1/ai/tools") {
+                    json_response(200, &tools)
+                } else if path.ends_with("/v1/ai/session") {
+                    json_response(200, &session)
+                } else {
+                    json_response(404, "{}")
+                };
+
+                let _ = stream.write_all(response.as_bytes());
+                let _ = stream.flush();
+            }
+        });
+
+        Self {
+            base_url: format!("http://127.0.0.1:{port}"),
+            requests,
+        }
+    }
+
+    /// The requests the server received, with the path of each.
+    pub fn requests(&self) -> Vec<(String, String)> {
+        self.requests.lock().expect("the requests").clone()
+    }
+
+    /// The bodies of the requests that went to a path.
+    pub fn bodies_of(&self, path: &str) -> Vec<String> {
+        self.requests()
+            .into_iter()
+            .filter(|(seen, _)| seen.contains(path))
+            .map(|(_, body)| body)
+            .collect()
+    }
+}
+
+/// Reads a request off the connection and records it.
+fn read_request(
+    stream: &mut std::net::TcpStream,
+    recorded: &Arc<Mutex<Vec<(String, String)>>>,
+) -> String {
+    let mut reader = BufReader::new(stream.try_clone().expect("a copy"));
+
+    let mut request_line = String::new();
+    let _ = reader.read_line(&mut request_line);
+
+    let mut content_length = 0usize;
+    loop {
+        let mut line = String::new();
+        if reader.read_line(&mut line).expect("a line") == 0 {
+            break;
+        }
+        if line == "\r\n" {
+            break;
+        }
+        if let Some(value) = line.to_ascii_lowercase().strip_prefix("content-length:") {
+            content_length = value.trim().parse().unwrap_or(0);
+        }
+    }
+
+    let mut bytes = vec![0u8; content_length];
+    if content_length > 0 {
+        reader.read_exact(&mut bytes).expect("the body");
+    }
+
+    let body = String::from_utf8_lossy(&bytes).to_string();
+    recorded
+        .lock()
+        .expect("the requests")
+        .push((request_line.clone(), body));
+
+    request_line
+        .split_whitespace()
+        .nth(1)
+        .unwrap_or_default()
+        .to_string()
+}
+
+/// A response that carries a stream of events.
+fn sse(body: &str) -> String {
+    format!(
+        "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nConnection: close\r\nContent-Length: {}\r\n\r\n{}",
+        body.len(),
+        body
+    )
+}
+
+/// A response that carries JSON.
+fn json_response(status: u16, body: &str) -> String {
+    let reason = if status == 200 { "OK" } else { "Not Found" };
+    format!(
+        "HTTP/1.1 {status} {reason}\r\nContent-Type: application/json\r\nConnection: close\r\nContent-Length: {}\r\n\r\n{}",
+        body.len(),
+        body
+    )
+}
+
+/// The tools the mock service offers.
+pub const TOOLS: &str = r#"[
+  {
+    "name": "read_section",
+    "description": "Read a section of a file.",
+    "parameters": {
+      "type": "object",
+      "properties": { "path": { "type": "string" } },
+      "required": ["path"]
+    }
+  }
+]"#;
+
+/// The answer the mock service gives when a tool is run.
+pub const SESSION: &str = r#"{
+  "id": "session-1",
+  "calls": [
+    {
+      "id": "call_1",
+      "name": "read_section",
+      "arguments": { "path": "a.md" },
+      "ok": true,
+      "result": { "text": "The title of the document." }
+    }
+  ],
+  "edits": []
+}"#;

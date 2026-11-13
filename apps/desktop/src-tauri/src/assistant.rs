@@ -1,0 +1,758 @@
+//! The assistant's run: ask the model, run the tools it asks for, repeat.
+//!
+//! The tools themselves live in the render service, which already knows how
+//! to run them against a project. This module is the part between the model
+//! and the service: it sends the conversation, reads the answer, runs the
+//! tools the assistant asked for, and sends the results back.
+//!
+//! Nothing is written to the project here. The service proposes the changes
+//! and the user decides, which is what the PRD requires (PRD section 7).
+
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+
+use serde::{Deserialize, Serialize};
+use serde_json::json;
+use tauri::ipc::Channel;
+
+use crate::config::{self, ProviderConfig};
+use crate::providers::{
+    self, ChatMessage, ContentPart, ProviderEndpoint, ProviderEvent, ProviderRequest, ToolCall,
+    ToolDefinition,
+};
+
+/// The instructions the assistant works under.
+///
+/// The rules the PRD sets out are in here: the model never edits the
+/// rendered output, every write goes through `propose_edit`, and the model
+/// cannot reach outside the project.
+const SYSTEM_PROMPT: &str = "\
+You are the assistant of a Markdown document studio. You help the user write \
+and lay out documents.
+
+The project you work on is a folder of Markdown files, CSS stylesheets and \
+assets. You cannot read or write anything outside it, and you cannot run \
+commands.
+
+Rules:
+- You never edit a file yourself. Every change goes through the propose_edit \
+or set_style tool, and the user sees the difference and decides whether to \
+keep it.
+- Read before you write. Use list_sections and read_section to see what the \
+document says, and search when you are not sure where something is.
+- Use render_preview to check how a change looks. It reports the page count, \
+the outline and any warnings the renderer found. After a change that affects \
+layout you are shown the rendered pages, so look at them and say what you \
+see.
+- Be concise. Answer in the fewest words that do the job.
+";
+
+/// The request the webview sends to start a run.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChatRequest {
+    /// The conversation so far, oldest first.
+    pub messages: Vec<ChatMessage>,
+    /// The project the assistant works on.
+    pub project: serde_json::Value,
+    /// The project's text files.
+    #[serde(default)]
+    pub files: Vec<serde_json::Value>,
+    /// The project's assets.
+    #[serde(default)]
+    pub assets: Vec<serde_json::Value>,
+    /// The project's fonts.
+    #[serde(default)]
+    pub fonts: Vec<serde_json::Value>,
+    /// Where the render service is.
+    pub service_url: String,
+    /// Which provider to use, when the user picked one.
+    #[serde(default)]
+    pub provider_id: Option<String>,
+    /// Which model to use, when the user picked one.
+    #[serde(default)]
+    pub model: Option<String>,
+}
+
+/// What the run tells the webview.
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "type", rename_all = "camelCase")]
+pub enum AssistantEvent {
+    /// A piece of the answer.
+    Text {
+        /// The text.
+        text: String,
+    },
+    /// The assistant asked for a tool.
+    ToolCall {
+        /// The call's identifier.
+        id: String,
+        /// The tool's name.
+        name: String,
+        /// The arguments the assistant gave it.
+        arguments: serde_json::Value,
+    },
+    /// What a tool produced.
+    ToolResult {
+        /// The call's identifier.
+        id: String,
+        /// The tool's name.
+        name: String,
+        /// Whether it worked.
+        ok: bool,
+        /// What it produced.
+        result: Option<serde_json::Value>,
+        /// Why it failed, when it did.
+        error: Option<String>,
+    },
+    /// A change the assistant proposed.
+    Edit {
+        /// The change, in the shape the diff view takes.
+        edit: serde_json::Value,
+    },
+    /// The rendered pages the assistant was shown.
+    Pages {
+        /// How many pages the document has.
+        #[serde(rename = "pageCount")]
+        page_count: usize,
+    },
+    /// The run finished.
+    Done,
+    /// The run failed.
+    Error {
+        /// What went wrong.
+        message: String,
+    },
+}
+
+/// How many times the assistant may call tools before it has to answer.
+///
+/// Without a limit a model that keeps asking for the same tool would run
+/// forever. The limit is high enough for real work and low enough that a
+/// loop is noticed.
+const MAX_TOOL_ROUNDS: usize = 12;
+
+/// How many pages are sent back to the model after a layout change.
+///
+/// The model looks at the pages to see what the change did. Every page of a
+/// long document would be a lot of tokens for little gain, so the first few
+/// are enough to see the layout.
+const MAX_FEEDBACK_PAGES: usize = 3;
+
+/// The flag that stops a run.
+#[derive(Debug, Clone, Default)]
+pub struct CancelFlag(pub Arc<AtomicBool>);
+
+impl CancelFlag {
+    /// Whether the run was asked to stop.
+    pub fn is_cancelled(&self) -> bool {
+        self.0.load(Ordering::Relaxed)
+    }
+
+    /// Asks the run to stop.
+    pub fn cancel(&self) {
+        self.0.store(true, Ordering::Relaxed);
+    }
+
+    /// Lets the next run go.
+    pub fn reset(&self) {
+        self.0.store(false, Ordering::Relaxed);
+    }
+}
+
+/// The agent's run.
+pub struct Agent {
+    /// Where the render service is.
+    service_url: String,
+    /// The provider to talk to.
+    provider: ProviderConfig,
+    /// Where the provider is reached, and with what key.
+    endpoint: ProviderEndpoint,
+    /// The model to use.
+    model: String,
+    /// The tools the assistant may call.
+    tools: Vec<ToolDefinition>,
+    /// The flag that stops the run.
+    cancel: CancelFlag,
+}
+
+impl Agent {
+    /// The provider to use for a request.
+    ///
+    /// The provider the user picked wins; otherwise the first one that has a
+    /// key is used, so the app works as soon as one provider is set up.
+    fn choose_provider(
+        directory: &std::path::Path,
+        request: &ChatRequest,
+    ) -> Result<(ProviderConfig, Option<String>), String> {
+        let config = config::read_config_from(directory)?;
+
+        let chosen = match &request.provider_id {
+            Some(id) => config
+                .providers
+                .iter()
+                .find(|provider| &provider.id == id)
+                .cloned()
+                .ok_or_else(|| format!("There is no provider called '{id}'."))?,
+            None => config
+                .providers
+                .iter()
+                .find(|provider| config::provider_key_in(directory, &provider.id).is_some())
+                .cloned()
+                .ok_or_else(|| {
+                    "No provider is set up. Add one in Settings before using the assistant."
+                        .to_string()
+                })?,
+        };
+
+        let key = config::provider_key_in(directory, &chosen.id);
+        Ok((chosen, key))
+    }
+
+    /// The model to use for a request.
+    fn choose_model(request: &ChatRequest, provider: &ProviderConfig) -> String {
+        request
+            .model
+            .clone()
+            .filter(|model| !model.trim().is_empty())
+            .or_else(|| {
+                if provider.model.trim().is_empty() {
+                    None
+                } else {
+                    Some(provider.model.clone())
+                }
+            })
+            .unwrap_or_default()
+    }
+
+    /// Asks the render service what tools the assistant may call.
+    async fn fetch_tools(&self) -> Result<Vec<ToolDefinition>, String> {
+        let url = format!("{}/v1/ai/tools", self.service_url.trim_end_matches('/'));
+        let response = providers::client()
+            .map_err(|error| error.message)?
+            .get(&url)
+            .send()
+            .await
+            .map_err(|error| providers::describe_transport_failure("Could not reach the render service", &error))?;
+
+        if !response.status().is_success() {
+            return Err(format!(
+                "The render service answered with {}.",
+                response.status().as_u16()
+            ));
+        }
+
+        let body: serde_json::Value = response
+            .json()
+            .await
+            .map_err(|error| format!("The render service sent something unreadable: {error}"))?;
+
+        let tools = body
+            .as_array()
+            .ok_or_else(|| "The render service did not send a list of tools.".to_string())?;
+
+        Ok(tools
+            .iter()
+            .map(|tool| ToolDefinition {
+                name: tool
+                    .get("name")
+                    .and_then(|value| value.as_str())
+                    .unwrap_or_default()
+                    .to_string(),
+                description: tool
+                    .get("description")
+                    .and_then(|value| value.as_str())
+                    .unwrap_or_default()
+                    .to_string(),
+                parameters: tool
+                    .get("parameters")
+                    .cloned()
+                    .unwrap_or_else(|| json!({ "type": "object" })),
+            })
+            .collect())
+    }
+
+    /// Runs the tools the assistant asked for.
+    ///
+    /// The calls go to the render service, which runs them against the
+    /// project and returns both what each tool produced and the changes the
+    /// tools proposed.
+    async fn run_tools(
+        &self,
+        request: &ChatRequest,
+        calls: &[ToolCall],
+    ) -> Result<(Vec<AssistantEvent>, Vec<ChatMessage>), String> {
+        let url = format!("{}/v1/ai/session", self.service_url.trim_end_matches('/'));
+
+        let body = json!({
+            "project": request.project,
+            "files": request.files,
+            "assets": request.assets,
+            "fonts": request.fonts,
+            "calls": calls
+                .iter()
+                .map(|call| json!({
+                    "id": call.id,
+                    "name": call.name,
+                    "arguments": call.arguments,
+                }))
+                .collect::<Vec<_>>(),
+        });
+
+        let response = providers::client()
+            .map_err(|error| error.message)?
+            .post(&url)
+            .json(&body)
+            .send()
+            .await
+            .map_err(|error| providers::describe_transport_failure("Could not reach the render service", &error))?;
+
+        if !response.status().is_success() {
+            return Err(format!(
+                "The render service answered with {}.",
+                response.status().as_u16()
+            ));
+        }
+
+        let session: serde_json::Value = response
+            .json()
+            .await
+            .map_err(|error| format!("The render service sent something unreadable: {error}"))?;
+
+        let mut events = Vec::new();
+        let mut messages = Vec::new();
+
+        if let Some(results) = session.get("calls").and_then(|value| value.as_array()) {
+            for result in results {
+                let id = result
+                    .get("id")
+                    .and_then(|value| value.as_str())
+                    .unwrap_or_default()
+                    .to_string();
+                let name = result
+                    .get("name")
+                    .and_then(|value| value.as_str())
+                    .unwrap_or_default()
+                    .to_string();
+                let ok = result
+                    .get("ok")
+                    .and_then(|value| value.as_bool())
+                    .unwrap_or(false);
+                let error = result
+                    .get("error")
+                    .and_then(|value| value.as_str())
+                    .map(|value| value.to_string());
+                let payload = result.get("result").cloned();
+
+                events.push(AssistantEvent::ToolResult {
+                    id: id.clone(),
+                    name: name.clone(),
+                    ok,
+                    result: payload.clone(),
+                    error: error.clone(),
+                });
+
+                // The answer the model gets: what the tool produced, or why
+                // it did not.
+                let text = match (&payload, &error) {
+                    (_, Some(reason)) => format!("The tool '{name}' failed: {reason}"),
+                    (Some(value), None) => serde_json::to_string(value).unwrap_or_default(),
+                    (None, None) => String::new(),
+                };
+
+                messages.push(ChatMessage {
+                    role: "tool".to_string(),
+                    content: vec![ContentPart::Text { text }],
+                    tool_calls: Vec::new(),
+                    tool_call_id: Some(id),
+                    tool_name: Some(name),
+                });
+            }
+        }
+
+        // The changes the tools proposed, which the user decides on.
+        let edits = session
+            .get("edits")
+            .and_then(|value| value.as_array())
+            .cloned()
+            .unwrap_or_default();
+
+        for edit in &edits {
+            events.push(AssistantEvent::Edit {
+                edit: edit.clone(),
+            });
+        }
+
+        Ok((events, messages))
+    }
+
+    /// Asks the service for the rendered pages.
+    ///
+    /// The pages are what the assistant looks at after a change that
+    /// affects the layout.
+    async fn fetch_pages(
+        &self,
+        request: &ChatRequest,
+    ) -> Result<(Vec<ContentPart>, usize), String> {
+        let url = format!("{}/v1/render/pages", self.service_url.trim_end_matches('/'));
+
+        let body = json!({
+            "project": request.project,
+            "files": request.files,
+            "assets": request.assets,
+            "fonts": request.fonts,
+        });
+
+        let response = providers::client()
+            .map_err(|error| error.message)?
+            .post(&url)
+            .json(&body)
+            .send()
+            .await
+            .map_err(|error| providers::describe_transport_failure("Could not reach the render service", &error))?;
+
+        if !response.status().is_success() {
+            return Err(format!(
+                "The render service answered with {}.",
+                response.status().as_u16()
+            ));
+        }
+
+        let body: serde_json::Value = response
+            .json()
+            .await
+            .map_err(|error| format!("The render service sent something unreadable: {error}"))?;
+
+        let page_count = body
+            .get("pageCount")
+            .and_then(|value| value.as_u64())
+            .unwrap_or(0) as usize;
+
+        let mut parts = Vec::new();
+
+        if let Some(pages) = body.get("pages").and_then(|value| value.as_array()) {
+            for page in pages.iter().take(MAX_FEEDBACK_PAGES) {
+                let Some(base64) = page.get("pngBase64").and_then(|value| value.as_str()) else {
+                    continue;
+                };
+                parts.push(ContentPart::Image {
+                    base64: base64.to_string(),
+                    mime_type: "image/png".to_string(),
+                });
+            }
+        }
+
+        Ok((parts, page_count))
+    }
+
+    /// Whether a tool call changes the layout.
+    ///
+    /// The layout only changes when the stylesheet or a file's contents
+    /// change, so only those calls are worth rendering again.
+    pub fn changes_layout(call: &ToolCall) -> bool {
+        match call.name.as_str() {
+            "set_style" => true,
+            "render_preview" => true,
+            "propose_edit" => call
+                .arguments
+                .get("path")
+                .and_then(|value| value.as_str())
+                .map(|path| path.to_ascii_lowercase().ends_with(".css"))
+                .unwrap_or(false),
+            _ => false,
+        }
+    }
+}
+
+/// Runs the assistant and streams what happens back to the webview.
+///
+/// The run ends when the model answers without asking for a tool, when the
+/// tool budget runs out, or when the user stops it.
+pub async fn run(
+    request: ChatRequest,
+    channel: Channel<AssistantEvent>,
+    cancel: CancelFlag,
+) -> Result<(), String> {
+    let directory = config::config_directory()?;
+    run_in(&directory, request, channel, cancel).await
+}
+
+/// Runs the assistant, taking the providers from a folder.
+///
+/// The folder is a parameter rather than something read from the
+/// environment, so a test can run against its own settings without
+/// touching the ones the user has.
+pub async fn run_in(
+    directory: &std::path::Path,
+    request: ChatRequest,
+    channel: Channel<AssistantEvent>,
+    cancel: CancelFlag,
+) -> Result<(), String> {
+    cancel.reset();
+
+    let (provider, api_key) = match Agent::choose_provider(directory, &request) {
+        Ok(chosen) => chosen,
+        Err(message) => {
+            let _ = channel.send(AssistantEvent::Error { message });
+            let _ = channel.send(AssistantEvent::Done);
+            return Ok(());
+        }
+    };
+
+    let model = Agent::choose_model(&request, &provider);
+
+    if model.trim().is_empty() {
+        let _ = channel.send(AssistantEvent::Error {
+            message: format!("The provider '{}' has no model chosen.", provider.name),
+        });
+        let _ = channel.send(AssistantEvent::Done);
+        return Ok(());
+    }
+
+    let endpoint = providers::endpoint_for(&provider, api_key);
+
+    let mut agent = Agent {
+        service_url: request.service_url.clone(),
+        provider: provider.clone(),
+        endpoint,
+        model,
+        tools: Vec::new(),
+        cancel: cancel.clone(),
+    };
+
+    let tools = match agent.fetch_tools().await {
+        Ok(tools) => tools,
+        Err(message) => {
+            let _ = channel.send(AssistantEvent::Error { message });
+            let _ = channel.send(AssistantEvent::Done);
+            return Ok(());
+        }
+    };
+
+    agent.tools = tools;
+
+    // The conversation the model is answering, which grows as the tools run.
+    let mut messages = request.messages.clone();
+
+    for round in 0..MAX_TOOL_ROUNDS {
+        if agent.cancel.is_cancelled() {
+            break;
+        }
+
+        let provider_request = ProviderRequest {
+            system: SYSTEM_PROMPT.to_string(),
+            messages: messages.clone(),
+            tools: agent.tools.clone(),
+            model: agent.model.clone(),
+        };
+
+        let mut collected = Vec::new();
+
+        let outcome = {
+            let mut on_event = |event: ProviderEvent| match event {
+                ProviderEvent::Text(text) => {
+                    collected.push(AssistantEvent::Text { text: text.clone() });
+                }
+                ProviderEvent::ToolCall(call) => {
+                    collected.push(AssistantEvent::ToolCall {
+                        id: call.id.clone(),
+                        name: call.name.clone(),
+                        arguments: call.arguments.clone(),
+                    });
+                }
+                ProviderEvent::Done => {}
+            };
+
+            providers::stream_turn(&agent.provider, &agent.endpoint, &provider_request, &mut on_event)
+                .await
+        };
+
+        let turn = match outcome {
+            Ok(turn) => turn,
+            Err(error) => {
+                let _ = channel.send(AssistantEvent::Error {
+                    message: error.message,
+                });
+                let _ = channel.send(AssistantEvent::Done);
+                return Ok(());
+            }
+        };
+
+        for event in collected {
+            let _ = channel.send(event);
+        }
+
+        // What the model said goes back into the conversation, so it can see
+        // its own answer.
+        messages.push(ChatMessage {
+            role: "assistant".to_string(),
+            content: if turn.text.is_empty() {
+                Vec::new()
+            } else {
+                vec![ContentPart::Text {
+                    text: turn.text.clone(),
+                }]
+            },
+            tool_calls: turn.tool_calls.clone(),
+            tool_call_id: None,
+            tool_name: None,
+        });
+
+        if turn.tool_calls.is_empty() {
+            break;
+        }
+
+        if agent.cancel.is_cancelled() {
+            break;
+        }
+
+        match agent.run_tools(&request, &turn.tool_calls).await {
+            Ok((events, answers)) => {
+                for event in events {
+                    let _ = channel.send(event);
+                }
+                messages.extend(answers);
+            }
+            Err(message) => {
+                let _ = channel.send(AssistantEvent::Error { message });
+                break;
+            }
+        }
+
+        // A change that affects the layout is shown to the model as the
+        // rendered pages, so it can see what it did.
+        let wants_pages = turn.tool_calls.iter().any(Agent::changes_layout);
+
+        if wants_pages && !agent.cancel.is_cancelled() {
+            match agent.fetch_pages(&request).await {
+                Ok((parts, page_count)) => {
+                    let _ = channel.send(AssistantEvent::Pages { page_count });
+
+                    if !parts.is_empty() && agent.provider.supports_images {
+                        let mut content = vec![ContentPart::Text {
+                            text: "These are the rendered pages after the change. \
+                                   Look at them before you answer."
+                                .to_string(),
+                        }];
+                        content.extend(parts);
+
+                        messages.push(ChatMessage {
+                            role: "user".to_string(),
+                            content,
+                            tool_calls: Vec::new(),
+                            tool_call_id: None,
+                            tool_name: None,
+                        });
+                    } else {
+                        // The model cannot see images, so it is told what
+                        // the renderer found instead.
+                        messages.push(ChatMessage {
+                            role: "user".to_string(),
+                            content: vec![ContentPart::Text {
+                                text: format!(
+                                    "The document rendered to {page_count} pages. \
+                                     This model cannot see images, so check the \
+                                     render_preview tool for the warnings."
+                                ),
+                            }],
+                            tool_calls: Vec::new(),
+                            tool_call_id: None,
+                            tool_name: None,
+                        });
+                    }
+                }
+                Err(message) => {
+                    let _ = channel.send(AssistantEvent::Error { message });
+                }
+            }
+        }
+
+        if round + 1 == MAX_TOOL_ROUNDS {
+            let _ = channel.send(AssistantEvent::Error {
+                message: "The assistant asked for more tools than one run allows. \
+                          It was stopped."
+                    .to_string(),
+            });
+        }
+    }
+
+    let _ = channel.send(AssistantEvent::Done);
+    Ok(())
+}
+
+/// Runs the assistant.
+#[tauri::command(rename = "run_assistant")]
+pub async fn command_run_assistant(
+    request: ChatRequest,
+    channel: Channel<AssistantEvent>,
+    cancel: tauri::State<'_, CancelFlag>,
+) -> Result<(), String> {
+    run(request, channel, cancel.inner().clone()).await
+}
+
+/// Stops the run that is going on.
+#[tauri::command(rename = "cancel_assistant")]
+pub fn command_cancel_assistant(cancel: tauri::State<'_, CancelFlag>) -> Result<(), String> {
+    cancel.inner().cancel();
+    Ok(())
+}
+
+/// Checks that the provider answers, so the settings dialog can say whether
+/// the key works.
+#[tauri::command(rename = "test_provider")]
+pub async fn command_test_provider(
+    provider_id: Option<String>,
+    model: Option<String>,
+) -> Result<String, String> {
+    let config = config::read_config()?;
+
+    let provider = match provider_id {
+        Some(id) => config
+            .providers
+            .iter()
+            .find(|provider| provider.id == id)
+            .cloned()
+            .ok_or_else(|| format!("There is no provider called '{id}'."))?,
+        None => config
+            .providers
+            .first()
+            .cloned()
+            .ok_or_else(|| "There is no provider to test.".to_string())?,
+    };
+
+    let key = config::provider_key(&provider.id);
+
+    if provider.requires_key && key.is_none() {
+        return Err(format!("'{}' has no key yet.", provider.name));
+    }
+
+    let model = model
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| provider.model.clone());
+
+    let endpoint = providers::endpoint_for(&provider, key);
+
+    let request = ProviderRequest {
+        system: "You are checking that the connection works.".to_string(),
+        messages: vec![ChatMessage::text("user", "Reply with the word ready.")],
+        tools: Vec::new(),
+        model,
+    };
+
+    let mut answer = String::new();
+    let mut on_event = |event: ProviderEvent| {
+        if let ProviderEvent::Text(text) = event {
+            answer.push_str(&text);
+        }
+    };
+
+    providers::stream_turn(&provider, &endpoint, &request, &mut on_event)
+        .await
+        .map_err(|error| error.message)?;
+
+    if answer.trim().is_empty() {
+        return Err(format!("'{}' answered with nothing.", provider.name));
+    }
+
+    Ok(format!("'{}' answered: {}", provider.name, answer.trim()))
+}

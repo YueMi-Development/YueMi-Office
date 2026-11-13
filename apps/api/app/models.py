@@ -187,3 +187,18 @@ class AiToolDescriptionModel(BaseModel):
     name: str
     description: str
     parameters: dict = Field(default_factory=dict)
+
+
+class RenderPageModel(BaseModel):
+    """One rendered page, as a PNG."""
+
+    index: int
+    pngBase64: str
+
+
+class RenderPagesResponse(BaseModel):
+    """The rendered pages of a document, and what the renderer found."""
+
+    pageCount: int = 0
+    pages: list[RenderPageModel] = Field(default_factory=list)
+    warnings: list[RenderWarning] = Field(default_factory=list)

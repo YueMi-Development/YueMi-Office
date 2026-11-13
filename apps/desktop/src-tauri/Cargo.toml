@@ -23,6 +23,21 @@ log = "0.4"
 tauri = { version = "2.12.5", features = [] }
 tauri-plugin-log = "2"
 tauri-plugin-dialog = "2"
+# The provider calls are made from Rust, so the webview never holds an API
+# key and never makes a cross-origin request. TLS is rustls with the ring
+# provider, because aws-lc-rs needs a C toolchain on the Windows and macOS
+# runners.
+reqwest = { version = "0.13", default-features = false, features = [
+  "rustls-no-provider",
+  "json",
+  "stream",
+  "charset",
+  "http2",
+] }
+rustls = { version = "0.23", default-features = false, features = ["ring"] }
+futures-util = "0.3"
+dirs = "7"
 
 [dev-dependencies]
 tempfile = "3"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

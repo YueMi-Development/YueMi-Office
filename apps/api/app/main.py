@@ -18,10 +18,13 @@ from app.models import (
     AiToolDescriptionModel,
     HealthResponse,
     RenderOutline,
+    RenderPagesResponse,
+    RenderPageModel,
     RenderRequest,
 )
 from app.ai.session import ToolCall, run_session
 from app.ai.tools import TOOLS
+from app.render.pages import encode, rasterize
 from app.render.pipeline import RenderError, render_project
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
@@ -153,6 +156,39 @@ def ai_session(request: AiSessionRequest) -> AiSessionResponse:
         ],
     )
     return AiSessionResponse.model_validate(result)
+
+
+@app.post("/v1/render/pages", response_model=RenderPagesResponse)
+def render_pages(request: RenderRequest) -> RenderPagesResponse:
+    """Render a project and return its pages as images.
+
+    The assistant looks at the pages after a change that affects the layout,
+    so it can see what it did rather than only being told. The pages travel
+    as base64-encoded PNGs, because the app sends them straight to the
+    model provider.
+    """
+    try:
+        result = render_project(
+            request.project, request.files, request.assets, request.fonts
+        )
+    except RenderError as exc:
+        logger.exception("render failed")
+        return Response(
+            content=json.dumps({"error": "render failed", "details": str(exc)}),
+            status_code=422,
+            media_type="application/json",
+        )
+
+    page_count, images = rasterize(result.pdf)
+
+    return RenderPagesResponse(
+        pageCount=page_count,
+        pages=[
+            RenderPageModel(index=index, pngBase64=encode(image))
+            for index, image in enumerate(images)
+        ],
+        warnings=result.warnings,
+    )
 
 
 @app.post("/v1/render/outline", response_model=RenderOutline)

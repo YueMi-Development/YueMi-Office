@@ -295,3 +295,146 @@ export interface AiSession {
   calls: AiToolResult[];
   edits: ProposedEdit[];
 }
+
+/**
+ * The wire format a provider speaks.
+ *
+ * `anthropic` is Anthropic's Messages API and `openai` is OpenAI's Chat
+ * Completions API. `openai-compatible` is any other server that speaks the
+ * second one — Ollama, LM Studio, OpenRouter, vLLM — which only differs in
+ * the address it is reached at.
+ */
+export type ProviderProtocol = 'anthropic' | 'openai' | 'openai-compatible';
+
+/** One provider the assistant can talk to. */
+export interface ProviderConfig {
+  /** Identifier used to match a key to this provider. */
+  id: string;
+  /** The name the user gave it. */
+  name: string;
+  /** The wire format it speaks. */
+  protocol: ProviderProtocol;
+  /** Where the requests go. */
+  baseUrl: string;
+  /** The model used for requests. */
+  model: string;
+  /** The models the user offers for this provider. */
+  models: string[];
+  /** Whether the model takes page images. */
+  supportsImages: boolean;
+  /** Whether the provider needs a key. A local server usually does not. */
+  requiresKey: boolean;
+}
+
+/**
+ * A provider as the app shows it.
+ *
+ * The key is not part of it: the app gets `hasKey`, which says whether a key
+ * is there, and never the key itself.
+ */
+export interface ProviderView extends ProviderConfig {
+  hasKey: boolean;
+}
+
+/** Everything the app knows about the providers. */
+export interface AppConfig {
+  providers: ProviderConfig[];
+  activeProviderId: string | null;
+  activeModel: string | null;
+  /**
+   * Whether the assistant is allowed to run at all.
+   *
+   * Document content is sent to a provider when the assistant is used, and
+   * the PRD asks for a setting that turns that off entirely.
+   */
+  aiEnabled: boolean;
+}
+
+/** The configuration as the app sees it. */
+export interface AppConfigView {
+  providers: ProviderView[];
+  activeProviderId: string | null;
+  activeModel: string | null;
+  aiEnabled: boolean;
+  /** Where the configuration lives. */
+  directory: string;
+}
+
+/** A part of a message. */
+export type ContentPart =
+  | { kind: 'text'; text: string }
+  | { kind: 'image'; base64: string; mimeType: string };
+
+/** A message in the conversation with the assistant. */
+export interface ChatMessage {
+  /** Who said it: `user`, `assistant` or `tool`. */
+  role: 'user' | 'assistant' | 'tool';
+  /** What was said. */
+  content: ContentPart[];
+  /** The tools the assistant asked for, when it asked for any. */
+  toolCalls?: ToolCall[];
+  /** The answer to one tool call, when this message is the answer. */
+  toolCallId?: string;
+  /** The name of the tool, when this message is the answer. */
+  toolName?: string;
+}
+
+/** A tool the assistant asked for. */
+export interface ToolCall {
+  /** The provider's identifier for the call. */
+  id: string;
+  /** The tool's name. */
+  name: string;
+  /** The arguments, as the provider sends them. */
+  arguments: Record<string, unknown>;
+}
+
+/** The request the app sends to start a run of the assistant. */
+export interface ChatRequest {
+  /** The conversation so far, oldest first. */
+  messages: ChatMessage[];
+  /** The project the assistant works on. */
+  project: Project;
+  /** The project's text files. */
+  files: ProjectFile[];
+  /** The project's assets. */
+  assets: ProjectAsset[];
+  /** The project's fonts. */
+  fonts: ProjectFont[];
+  /** Where the render service is. */
+  serviceUrl: string;
+  /** Which provider to use, when the user picked one. */
+  providerId?: string;
+  /** Which model to use, when the user picked one. */
+  model?: string;
+}
+
+/** What a run of the assistant tells the app. */
+export type AssistantEvent =
+  | { type: 'text'; text: string }
+  | { type: 'toolCall'; id: string; name: string; arguments: Record<string, unknown> }
+  | {
+      type: 'toolResult';
+      id: string;
+      name: string;
+      ok: boolean;
+      result?: Record<string, unknown>;
+      error?: string;
+    }
+  | { type: 'edit'; edit: ProposedEdit }
+  | { type: 'pages'; pageCount: number }
+  | { type: 'done' }
+  | { type: 'error'; message: string };
+
+/** One rendered page of a document, as a PNG. */
+export interface RenderPage {
+  index: number;
+  pngBase64: string;
+}
+
+/** The rendered pages of a document. */
+export interface RenderPages {
+  pageCount: number;
+  pages: RenderPage[];
+  warnings: RenderWarning[];
+}

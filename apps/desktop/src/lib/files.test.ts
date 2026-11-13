@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import rustSource from '../../src-tauri/src/project.rs?raw';
+import assistantSource from '../../src-tauri/src/assistant.rs?raw';
+import configSource from '../../src-tauri/src/config.rs?raw';
+import projectSource from '../../src-tauri/src/project.rs?raw';
+import appConfigSource from './appConfig.ts?raw';
+import chatSource from './chat.ts?raw';
 import frontendSource from './files.ts?raw';
 
 /**
@@ -17,6 +21,19 @@ import frontendSource from './files.ts?raw';
  */
 
 /**
+ * The sources the frontend calls commands from.
+ *
+ * Every file that invokes a command is listed here, so a command that is
+ * added to a new file is still checked.
+ */
+const FRONTEND_SOURCES = [frontendSource, appConfigSource, chatSource];
+
+/**
+ * The sources the shell registers commands in.
+ */
+const SHELL_SOURCES = [projectSource, configSource, assistantSource];
+
+/**
  * The names the frontend invokes.
  *
  * Every `invoke` call in the frontend names one command.
@@ -25,10 +42,13 @@ function frontendCommands(): string[] {
   const names = new Set<string>();
 
   const pattern = /invoke(?:<[^>]*>)?\(\s*'([^']+)'/g;
-  let match = pattern.exec(frontendSource);
-  while (match !== null) {
-    names.add(match[1]);
-    match = pattern.exec(frontendSource);
+
+  for (const source of FRONTEND_SOURCES) {
+    let match = pattern.exec(source);
+    while (match !== null) {
+      names.add(match[1]);
+      match = pattern.exec(source);
+    }
   }
 
   return [...names].sort();
@@ -45,19 +65,22 @@ function shellCommands(): string[] {
   const names = new Set<string>();
 
   const renamed = /#\[tauri::command\(rename\s*=\s*"([^"]+)"\)\]/g;
-  let match = renamed.exec(rustSource);
-  while (match !== null) {
-    names.add(match[1]);
-    match = renamed.exec(rustSource);
-  }
-
-  // A command without a rename is registered under the name of its
-  // function, so it is found by that name.
   const plain = /#\[tauri::command\]\s*pub fn (\w+)/g;
-  match = plain.exec(rustSource);
-  while (match !== null) {
-    names.add(match[1]);
-    match = plain.exec(rustSource);
+
+  for (const source of SHELL_SOURCES) {
+    let match = renamed.exec(source);
+    while (match !== null) {
+      names.add(match[1]);
+      match = renamed.exec(source);
+    }
+
+    // A command without a rename is registered under the name of its
+    // function, so it is found by that name.
+    match = plain.exec(source);
+    while (match !== null) {
+      names.add(match[1]);
+      match = plain.exec(source);
+    }
   }
 
   return [...names].sort();
@@ -80,12 +103,19 @@ describe('the commands the webview invokes', () => {
     // forgotten on the other shows up here rather than as a call that fails
     // in the running app.
     expect(frontendCommands()).toEqual([
+      'cancel_assistant',
       'collect_project_binaries',
+      'config_directory',
       'create_project',
       'export_binary_file',
       'export_text_file',
+      'load_app_config',
       'open_project',
+      'run_assistant',
+      'save_app_config',
       'save_project',
+      'set_provider_key',
+      'test_provider',
       'write_project_file',
     ]);
   });

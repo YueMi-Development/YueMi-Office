@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 
+import { ChatPanel } from './ChatPanel';
 import { DiffView } from './DiffView';
 import { runScript, ScriptError } from '../../lib/script';
 import { listAiTools } from '../../lib/api';
@@ -10,13 +11,17 @@ export interface AssistantPanelProps {
   onClose: () => void;
 }
 
+/** Which half of the assistant is showing. */
+type Tab = 'chat' | 'script';
+
 /**
  * The assistant's panel.
  *
- * A session is run from a script — a list of tool calls written down
- * beforehand — because the assistant's tools are what the user needs to see
- * and approve, and a script exercises exactly that path without needing the
- * model (PRD section 10, milestone 3).
+ * The chat is how the assistant is used: the model reads the document,
+ * proposes changes and looks at how they render (PRD section 10, milestone
+ * 4). The script tab is kept because a session written down beforehand
+ * exercises the tool path without needing a provider, which is what makes
+ * the tool layer testable on its own.
  *
  * The changes a session proposes are shown as differences, and each hunk can
  * be accepted or rejected on its own. The whole session becomes one
@@ -42,6 +47,7 @@ export function AssistantPanel({ onClose }: AssistantPanelProps) {
     clearAnswered,
   } = useAssistantStore();
 
+  const [tab, setTab] = useState<Tab>('chat');
   const [script, setScript] = useState('');
   const [toolNames, setToolNames] = useState<string[]>([]);
   const setActivePath = useEditorStore((state) => state.setActivePath);
@@ -102,36 +108,60 @@ export function AssistantPanel({ onClose }: AssistantPanelProps) {
         </button>
       </header>
 
-      <section className="assistant-section">
-        <label className="settings-field">
-          <span className="settings-label">Session script</span>
-          <textarea
-            className="assistant-script"
-            rows={4}
-            spellCheck={false}
-            value={script}
-            onChange={(event) => setScript(event.target.value)}
-            placeholder='[{"name": "list_sections", "arguments": {}}]'
-          />
-        </label>
+      <div className="assistant-tabs" role="tablist" aria-label="Assistant">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'chat'}
+          className={tab === 'chat' ? 'assistant-tab assistant-tab-active' : 'assistant-tab'}
+          onClick={() => setTab('chat')}
+        >
+          Chat
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'script'}
+          className={
+            tab === 'script' ? 'assistant-tab assistant-tab-active' : 'assistant-tab'
+          }
+          onClick={() => setTab('script')}
+        >
+          Script
+        </button>
+      </div>
 
-        <div className="assistant-actions">
-          <button type="button" onClick={handleRun} disabled={status === 'running'}>
-            {status === 'running' ? 'Running…' : 'Run session'}
-          </button>
-          <button type="button" onClick={handleApply} disabled={!hasAccepted}>
-            Apply accepted
-          </button>
-        </div>
+      {tab === 'chat' ? (
+        <ChatPanel />
+      ) : (
+        <section className="assistant-section">
+          <label className="settings-field">
+            <span className="settings-label">Session script</span>
+            <textarea
+              className="assistant-script"
+              rows={4}
+              spellCheck={false}
+              value={script}
+              onChange={(event) => setScript(event.target.value)}
+              placeholder='[{"name": "list_sections", "arguments": {}}]'
+            />
+          </label>
 
-        {error && (
-          <p className="settings-problem" role="alert">
-            {error}
-          </p>
-        )}
-      </section>
+          <div className="assistant-actions">
+            <button type="button" onClick={handleRun} disabled={status === 'running'}>
+              {status === 'running' ? 'Running…' : 'Run session'}
+            </button>
+          </div>
 
-      {toolCalls.length > 0 && (
+          {error && (
+            <p className="settings-problem" role="alert">
+              {error}
+            </p>
+          )}
+        </section>
+      )}
+
+      {tab === 'script' && toolCalls.length > 0 && (
         <section className="assistant-section">
           <h3 className="assistant-subtitle">Tools used</h3>
           <ul className="assistant-tools">
@@ -159,6 +189,9 @@ export function AssistantPanel({ onClose }: AssistantPanelProps) {
             </button>
             <button type="button" onClick={rejectAll}>
               Reject all
+            </button>
+            <button type="button" onClick={handleApply} disabled={!hasAccepted}>
+              Apply accepted
             </button>
           </div>
 

@@ -1,13 +1,42 @@
+mod assistant;
+mod config;
 mod project;
+pub mod providers;
 
 #[cfg(test)]
+mod assistant_service_tests;
+#[cfg(test)]
+mod assistant_tests;
+#[cfg(test)]
+mod assistant_run_tests;
+#[cfg(test)]
+mod test_support;
+#[cfg(test)]
+mod config_tests;
+#[cfg(test)]
 mod project_tests;
+#[cfg(test)]
+mod providers_http_tests;
+#[cfg(test)]
+mod providers_tests;
 
 /// The filesystem commands, exposed so they can be tested directly.
 pub mod testing {
+    pub use crate::providers;
+    pub use crate::assistant::{run, run_in, AssistantEvent, CancelFlag, ChatRequest};
+    pub use crate::config::{
+        config_view_from, provider_key, provider_key_in, read_config,
+        read_config_from, read_credentials, read_credentials_from, set_provider_key,
+        set_provider_key_in, write_config, write_config_to, write_credentials_to, AppConfig,
+        AppConfigView, ProviderConfig, ProviderProtocol, ProviderView,
+    };
     pub use crate::project::{
         collect_project_binaries, create_project, export_binary_file, export_text_file,
         open_project, read_binary_file, save_project, write_project_file,
+    };
+    pub use crate::providers::{
+        anthropic, openai, sse, ChatMessage, ContentPart, PendingCall, ProviderEndpoint,
+        ProviderError, ProviderEvent, ProviderRequest, ProviderTurn, ToolCall, ToolDefinition,
     };
 }
 
@@ -15,6 +44,7 @@ pub mod testing {
 pub fn run() {
   tauri::Builder::default()
     .plugin(tauri_plugin_dialog::init())
+    .manage(assistant::CancelFlag::default())
     .setup(|app| {
       if cfg!(debug_assertions) {
         app.handle().plugin(
@@ -34,6 +64,13 @@ pub fn run() {
       project::command_read_binary_file,
       project::command_collect_project_binaries,
       project::command_create_project,
+      config::command_load_app_config,
+      config::command_save_app_config,
+      config::command_set_provider_key,
+      config::command_config_directory,
+      assistant::command_run_assistant,
+      assistant::command_cancel_assistant,
+      assistant::command_test_provider,
     ])
     .run(tauri::generate_context!())
     .expect("error while building tauri application");

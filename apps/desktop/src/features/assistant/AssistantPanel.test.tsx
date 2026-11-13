@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { ProposedEdit } from '@yuemi/protocol';
 
 import { AssistantPanel } from './AssistantPanel';
 import { useAssistantStore } from '../../state/assistantStore';
+import { useConfigStore } from '../../state/configStore';
 
 const edit: ProposedEdit = {
   id: 'edit-1',
@@ -35,8 +36,33 @@ describe('AssistantPanel', () => {
     useAssistantStore.getState().setError(null);
   });
 
+  /**
+   * Shows the script half of the panel.
+   *
+   * The chat is what the panel opens on, because that is how the assistant
+   * is used; the script is the other half.
+   */
+  function showScript() {
+    fireEvent.click(screen.getByRole('tab', { name: 'Script' }));
+  }
+
+  it('shows the chat when it opens', async () => {
+    render(<AssistantPanel onClose={vi.fn()} />);
+
+    expect(screen.getByRole('tab', { name: 'Chat' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+
+    // The chat reads the configuration when it opens, and the answer arrives
+    // after the render has finished.
+    await waitFor(() => expect(useConfigStore.getState().loaded).toBe(true));
+  });
+
   it('shows the script the session is run from', () => {
     render(<AssistantPanel onClose={vi.fn()} />);
+
+    showScript();
 
     expect(screen.getByLabelText('Session script')).toBeInTheDocument();
   });
@@ -62,6 +88,8 @@ describe('AssistantPanel', () => {
 
     render(<AssistantPanel onClose={vi.fn()} />);
 
+    showScript();
+
     expect(screen.getByText('list_sections')).toBeInTheDocument();
   });
 
@@ -77,6 +105,8 @@ describe('AssistantPanel', () => {
     ]);
 
     render(<AssistantPanel onClose={vi.fn()} />);
+
+    showScript();
 
     expect(
       screen.getByText('There is no file at content/nope.md in this project.'),

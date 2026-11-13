@@ -470,6 +470,14 @@ input:focus-visible {
   box-shadow: 0 12px 40px rgb(0 0 0 / 30%);
 }
 
+/* The settings dialog holds the provider list, which needs more room than
+   the template picker does. */
+.template-picker-panel.settings-panel {
+  width: min(760px, 92vw);
+  max-height: 88vh;
+  overflow-y: auto;
+}
+
 .template-picker-title {
   margin: 0 0 12px;
   font-size: 15px;
@@ -547,6 +555,62 @@ input:focus-visible {
   margin: 8px 0 0;
   font-size: 12px;
   color: var(--text-muted);
+}
+
+.settings-section {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.settings-subtitle {
+  margin: 0 0 10px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.settings-field-inline {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.settings-providers {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 12px 0;
+}
+
+.settings-provider {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-raised);
+}
+
+.settings-provider-name {
+  padding: 0 4px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.settings-hint {
+  margin: 10px 0 0;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.settings-hint code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  word-break: break-all;
 }
 
 /* Assistant */
@@ -657,7 +721,6 @@ input:focus-visible {
 .assistant-edit {
   margin-bottom: 12px;
 }
-
 .assistant-open-file {
   margin-top: 4px;
   padding: 2px 6px;
@@ -666,6 +729,133 @@ input:focus-visible {
   color: var(--accent);
   font-size: 11px;
   text-decoration: underline;
+}
+
+/* The tabs that choose between the chat and the script. */
+
+.assistant-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  flex: 0 0 auto;
+}
+
+.assistant-tab {
+  padding: 4px 10px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.assistant-tab-active {
+  border-color: var(--border);
+  background: var(--surface);
+  color: var(--text);
+}
+
+/* The chat with the assistant. */
+
+.chat-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.chat-messages {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.chat-empty {
+  margin: 0;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.chat-message {
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+
+.chat-message-user {
+  background: var(--surface);
+}
+
+.chat-message-assistant {
+  background: var(--surface-raised);
+}
+
+.chat-text {
+  margin: 0;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.chat-tools {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.chat-tool {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.chat-tool-name {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.chat-tool-ok {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.chat-tool-running {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.chat-tool-failed {
+  font-size: 11px;
+  color: var(--danger);
+}
+
+.chat-composer {
+  flex: 0 0 auto;
+  padding: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.chat-input {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  resize: vertical;
 }
 
 /* Differences */
