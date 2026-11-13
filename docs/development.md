@@ -9,7 +9,7 @@ You need [Bun](https://bun.sh), Rust, and Python 3.10+.
 ```bash
 cd apps/api
 python -m venv .venv
-. .venv/bin/activate            # .venv\Scripts\activate on Windows
+. .venv/bin/activate
 pip install -e ".[dev]"
 uvicorn app.main:app --port 32100
 ```
@@ -52,9 +52,9 @@ keeps the two in step.
 ## Tests
 
 ```bash
-cd apps/api && pytest                    # 148 tests
-bun run test                             # 244 desktop tests, 30 protocol tests
-cd apps/desktop/src-tauri && cargo test  # 134 tests
+cd apps/api && pytest
+bun run test
+cd apps/desktop/src-tauri && cargo test
 ```
 
 The visual tests compare the rendered pages of the reference document against
@@ -88,6 +88,35 @@ files that carry it.
 
 The builds are not signed. Windows and macOS will warn about an application
 from an unknown developer.
+
+## The icons
+
+The icons of the app are not kept in the repository. They are derived from one
+picture, `.github/assets/Logo.png`, every time they are needed:
+
+```bash
+bun run icons
+```
+
+The Tauri CLI does the work, because it is the tool that knows which files
+each platform's bundler wants. The pictures it writes land in
+`apps/desktop/src-tauri/icons`, which is ignored by Git.
+
+The derivation is a hook in the Tauri configuration, so it happens on its own:
+
+```json
+"beforeBuildCommand": "bun run icons && bun run build",
+"beforeDevCommand": "bun run icons && bun run dev"
+```
+
+The order matters. The Rust side of the app reads the icon of the window into
+the binary, and the bundler of every platform reads its own file out of the
+same folder, so the icons have to be there before the Rust side is compiled
+and not only before the installers are made.
+
+One job does not get the hook: the CI job that runs `cargo test` calls cargo
+directly rather than through the Tauri CLI, so the workflow writes the icons
+itself before it runs the tests.
 
 ## The version
 

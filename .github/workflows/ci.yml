@@ -133,6 +133,11 @@ jobs:
       - name: Install Linux dependencies
         run: .github/scripts/install-linux-deps.sh libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf xdg-utils
 
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
 
@@ -140,6 +145,16 @@ jobs:
         uses: swatinem/rust-cache@v2
         with:
           workspaces: apps/desktop/src-tauri -> target
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # The icons are not in the repository. They are derived from one
+      # picture when they are needed, and the Rust side of the app reads
+      # the icon of the window into the binary, so a compile without them
+      # fails.
+      - name: Write the icons
+        run: bun run scripts/generate-icons.ts
 
       - name: Run cargo tests
         working-directory: apps/desktop/src-tauri

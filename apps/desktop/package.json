@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "typecheck": "tsc -b --noEmit",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "icons": "bun run ../../scripts/generate-icons.ts"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.18.0",

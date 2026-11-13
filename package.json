@@ -16,6 +16,7 @@
     "build:desktop:debug": "bun run scripts/build-desktop.ts --debug",
     "set-version": "bun run scripts/set-version.ts",
     "version:report": "bun run scripts/version-report.ts",
+    "icons": "bun run scripts/generate-icons.ts",
     "tauri": "bun run --cwd apps/desktop tauri"
   },
   "engines": {
