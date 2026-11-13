@@ -3,6 +3,7 @@ import type { OutlineEntry, RenderWarning } from '@yuemi/protocol';
 
 import { renderProject } from '../lib/api';
 import { loadProjectBinaries } from '../lib/projectAssets';
+import { reasonOf } from '../lib/tauri';
 import { useProjectStore } from './projectStore';
 
 /** How long to wait after the last edit before rendering. */
@@ -129,7 +130,7 @@ async function runRender(
     }
     set({
       status: 'error',
-      error: error instanceof Error ? error.message : 'Render failed',
+      error: reasonOf(error, 'Render failed'),
     });
   }
 }

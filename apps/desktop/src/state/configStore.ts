@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { AppConfig, AppConfigView, ProviderConfig } from '@yuemi/protocol';
 
 import { loadAppConfig, saveAppConfig, setProviderKey } from '../lib/appConfig';
+import { reasonOf } from '../lib/tauri';
 
 /**
  * The providers the assistant can talk to.
@@ -52,7 +53,7 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
     } catch (error) {
       set({
         loaded: true,
-        error: error instanceof Error ? error.message : 'The settings could not be read.',
+        error: reasonOf(error, 'The settings could not be read.'),
       });
     }
   },
@@ -64,7 +65,7 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
       return true;
     } catch (error) {
       set({
-        error: error instanceof Error ? error.message : 'The settings could not be saved.',
+        error: reasonOf(error, 'The settings could not be saved.'),
       });
       return false;
     }
@@ -89,7 +90,7 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
       return true;
     } catch (error) {
       set({
-        error: error instanceof Error ? error.message : 'The key could not be saved.',
+        error: reasonOf(error, 'The key could not be saved.'),
       });
       return false;
     }

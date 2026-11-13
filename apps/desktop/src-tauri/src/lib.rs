@@ -4,11 +4,13 @@ mod project;
 pub mod providers;
 
 #[cfg(test)]
+mod assistant_provider_tests;
+#[cfg(test)]
+mod assistant_run_tests;
+#[cfg(test)]
 mod assistant_service_tests;
 #[cfg(test)]
 mod assistant_tests;
-#[cfg(test)]
-mod assistant_run_tests;
 #[cfg(test)]
 mod test_support;
 #[cfg(test)]
@@ -26,7 +28,8 @@ mod providers_error_tests;
 pub mod testing {
     pub use crate::providers;
     pub use crate::assistant::{
-        run, run_in, Agent, AssistantEvent, CancelFlag, ChatRequest, MAX_TOOL_ROUNDS,
+        run, run_in, test_provider_in, Agent, AssistantEvent, CancelFlag, ChatRequest,
+        MAX_TOOL_ROUNDS, ProviderTest,
     };
     pub use crate::config::{
         config_view_from, provider_key, provider_key_in, read_config,

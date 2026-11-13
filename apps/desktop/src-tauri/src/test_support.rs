@@ -19,6 +19,8 @@ pub struct MockServer {
     pub base_url: String,
     /// The requests the server received, with the path of each.
     requests: Arc<Mutex<Vec<(String, String)>>>,
+    /// The heads of the requests, which carry the headers.
+    heads: Arc<Mutex<Vec<String>>>,
 }
 
 impl MockServer {
@@ -76,8 +78,10 @@ impl MockServer {
         let listener = TcpListener::bind("127.0.0.1:0").expect("a port to bind");
         let port = listener.local_addr().expect("the address").port();
         let requests = Arc::new(Mutex::new(Vec::new()));
+        let heads = Arc::new(Mutex::new(Vec::new()));
 
         let recorded = Arc::clone(&requests);
+        let recorded_heads = Arc::clone(&heads);
         let tools = tools.to_string();
         let session = session.to_string();
 
@@ -86,7 +90,7 @@ impl MockServer {
 
             for stream in listener.incoming() {
                 let Ok(mut stream) = stream else { continue };
-                let path = read_request(&mut stream, &recorded);
+                let path = read_request(&mut stream, &recorded, &recorded_heads);
 
                 if let Some(delay) = delay {
                     // The wait is only for the provider, because the test is
@@ -125,12 +129,18 @@ impl MockServer {
         Self {
             base_url: format!("http://127.0.0.1:{port}"),
             requests,
+            heads,
         }
     }
 
     /// The requests the server received, with the path of each.
     pub fn requests(&self) -> Vec<(String, String)> {
         self.requests.lock().expect("the requests").clone()
+    }
+
+    /// The heads of the requests, which carry the headers.
+    pub fn heads(&self) -> Vec<String> {
+        self.heads.lock().expect("the heads").clone()
     }
 
     /// The bodies of the requests that went to a path.
@@ -144,15 +154,20 @@ impl MockServer {
 }
 
 /// Reads a request off the connection and records it.
+///
+/// The head is recorded as well as the body, because the head carries the
+/// headers, and a test that wants to see which key was sent looks there.
 fn read_request(
     stream: &mut std::net::TcpStream,
     recorded: &Arc<Mutex<Vec<(String, String)>>>,
+    heads: &Arc<Mutex<Vec<String>>>,
 ) -> String {
     let mut reader = BufReader::new(stream.try_clone().expect("a copy"));
 
     let mut request_line = String::new();
     let _ = reader.read_line(&mut request_line);
 
+    let mut head = request_line.clone();
     let mut content_length = 0usize;
     loop {
         let mut line = String::new();
@@ -162,6 +177,9 @@ fn read_request(
         if line == "\r\n" {
             break;
         }
+
+        head.push_str(&line);
+
         if let Some(value) = line.to_ascii_lowercase().strip_prefix("content-length:") {
             content_length = value.trim().parse().unwrap_or(0);
         }
@@ -177,6 +195,7 @@ fn read_request(
         .lock()
         .expect("the requests")
         .push((request_line.clone(), body));
+    heads.lock().expect("the heads").push(head);
 
     request_line
         .split_whitespace()

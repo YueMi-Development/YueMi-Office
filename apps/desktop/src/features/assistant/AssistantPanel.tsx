@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { ChatPanel } from './ChatPanel';
 import { DiffView } from './DiffView';
-import { runScript, ScriptError } from '../../lib/script';
+import { runScript } from '../../lib/script';
+import { reasonOf } from '../../lib/tauri';
 import { listAiTools } from '../../lib/api';
 import { useAssistantStore } from '../../state/assistantStore';
 import { useEditorStore } from '../../state/editorStore';
@@ -77,13 +78,7 @@ export function AssistantPanel({ onClose }: AssistantPanelProps) {
       setPending(outcome.edits);
       setError(null);
     } catch (caught) {
-      setError(
-        caught instanceof ScriptError
-          ? caught.message
-          : caught instanceof Error
-            ? caught.message
-            : 'The session could not be run.',
-      );
+      setError(reasonOf(caught, 'The session could not be run.'));
     } finally {
       setRunning(false);
     }

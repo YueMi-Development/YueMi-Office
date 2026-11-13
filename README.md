@@ -95,6 +95,14 @@ The setting that turns the assistant off is honoured by the shell as well
 as by the window, so a run cannot be started from outside the app when the
 document's contents are not meant to leave the machine.
 
+Each provider has its own **Test provider** button. The button tries the
+provider as the form shows it, not as it was last saved, so a new provider or
+a changed address can be tried before the settings are kept. The answer is
+shown under the provider it belongs to, and a failure says why: a missing
+address, a missing key, a key the provider refused, or a provider that did
+not answer within thirty seconds. A key that has only been typed is used as
+it is, so the provider can be tried before the key is saved.
+
 ## Running it
 
 You need [Bun](https://bun.sh), Rust, and Python 3.10+.

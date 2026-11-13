@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AiToolName, AiToolResult, ProposedEdit } from '@yuemi/protocol';
 
 import { cancelAssistant, runAssistant } from '../../lib/chat';
+import { reasonOf } from '../../lib/tauri';
 import { useAssistantStore } from '../../state/assistantStore';
 import { useChatStore } from '../../state/chatStore';
 import { useConfigStore } from '../../state/configStore';
@@ -109,9 +110,7 @@ export function ChatPanel() {
 
       endRun();
     } catch (caught) {
-      failRun(
-        caught instanceof Error ? caught.message : 'The assistant could not be reached.',
-      );
+      failRun(reasonOf(caught, 'The assistant could not be reached.'));
     }
   }, [
     draft,

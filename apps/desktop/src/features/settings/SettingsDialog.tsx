@@ -4,6 +4,7 @@ import type { AppConfig, ProviderConfig, ProviderProtocol } from '@yuemi/protoco
 import { checkHealth } from '../../lib/api';
 import { makeProvider, testProvider } from '../../lib/appConfig';
 import { DEFAULT_SERVICE_URL, validateServiceUrl } from '../../lib/serviceUrl';
+import { reasonOf } from '../../lib/tauri';
 import { useConfigStore } from '../../state/configStore';
 import { useSettingsStore } from '../../state/settingsStore';
 
@@ -52,7 +53,7 @@ export function SettingsDialog({ onClose }: SettingsDialogProps) {
   const [aiEnabled, setAiEnabled] = useState(true);
   const [keys, setKeys] = useState<Record<string, string>>({});
   const [testing, setTesting] = useState<string | null>(null);
-  const [testResult, setTestResult] = useState<string | null>(null);
+  const [testResults, setTestResults] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
 
   /**
@@ -153,9 +154,7 @@ export function SettingsDialog({ onClose }: SettingsDialogProps) {
       );
     } catch (error) {
       setStatus(
-        `Could not reach the service: ${
-          error instanceof Error ? error.message : 'unknown error'
-        }`,
+        `Could not reach the service: ${reasonOf(error, 'unknown error')}`,
       );
     } finally {
       setChecking(false);
@@ -173,14 +172,32 @@ export function SettingsDialog({ onClose }: SettingsDialogProps) {
 
   const handleTest = async (provider: ProviderConfig) => {
     setTesting(provider.id);
-    setTestResult(null);
+    setTestResults((state) => {
+      const next = { ...state };
+      delete next[provider.id];
+      return next;
+    });
     try {
-      const answer = await testProvider(provider.id, provider.model);
-      setTestResult(answer);
+      // The provider is tried as it is on screen, so that a change to the
+      // address or the model can be tried before the settings are kept. A
+      // key that has only been typed is sent as it is, because the shell
+      // has no key of its own to give.
+      const typed = (keys[provider.id] ?? '').trim();
+      const answer = await testProvider({
+        id: provider.id,
+        name: provider.name,
+        protocol: provider.protocol,
+        baseUrl: provider.baseUrl,
+        model: provider.model,
+        requiresKey: provider.requiresKey,
+        apiKey: typed === '' ? undefined : typed,
+      });
+      setTestResults((state) => ({ ...state, [provider.id]: answer }));
     } catch (error) {
-      setTestResult(
-        error instanceof Error ? error.message : 'The provider did not answer.',
-      );
+      setTestResults((state) => ({
+        ...state,
+        [provider.id]: reasonOf(error, 'The provider did not answer.'),
+      }));
     } finally {
       setTesting(null);
     }
@@ -207,6 +224,16 @@ export function SettingsDialog({ onClose }: SettingsDialogProps) {
         provider.id === id ? { ...provider, ...changes } : provider,
       ),
     );
+    // The answer that is shown belongs to the provider as it was when it
+    // was tried, so it is dropped when the provider changes.
+    setTestResults((state) => {
+      if (!(id in state)) {
+        return state;
+      }
+      const next = { ...state };
+      delete next[id];
+      return next;
+    });
   };
 
   return (
@@ -403,12 +430,24 @@ export function SettingsDialog({ onClose }: SettingsDialogProps) {
                         value={keys[provider.id] ?? ''}
                         spellCheck={false}
                         placeholder="Paste the key"
-                        onChange={(event) =>
+                        onChange={(event) => {
+                          const key = event.target.value;
                           setKeys((state) => ({
                             ...state,
-                            [provider.id]: event.target.value,
-                          }))
-                        }
+                            [provider.id]: key,
+                          }));
+                          // The answer that is shown belongs to the key as it
+                          // was when the provider was tried, so it is dropped
+                          // when the key changes.
+                          setTestResults((state) => {
+                            if (!(provider.id in state)) {
+                              return state;
+                            }
+                            const next = { ...state };
+                            delete next[provider.id];
+                            return next;
+                          });
+                        }}
                       />
                       <button
                         type="button"
@@ -432,12 +471,14 @@ export function SettingsDialog({ onClose }: SettingsDialogProps) {
                       Remove
                     </button>
                   </div>
+
+                  {testResults[provider.id] && (
+                    <p className="settings-status">{testResults[provider.id]}</p>
+                  )}
                 </fieldset>
               );
             })}
           </div>
-
-          {testResult && <p className="settings-status">{testResult}</p>}
 
           <div className="assistant-actions">
             <button type="button" onClick={handleAdd}>

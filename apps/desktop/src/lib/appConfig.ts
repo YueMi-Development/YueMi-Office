@@ -3,6 +3,7 @@ import type {
   AppConfig,
   AppConfigView,
   ProviderConfig,
+  ProviderProtocol,
 } from '@yuemi/protocol';
 
 import { isTauri } from './tauri';
@@ -153,20 +154,46 @@ export async function configDirectory(): Promise<string> {
 }
 
 /**
+ * A provider as the settings dialog shows it, ready to be tried.
+ *
+ * The key that was saved is not part of it: the shell looks the key up by
+ * the provider's identifier in the user's home folder, so the webview never
+ * holds one. A key that has only just been typed is sent, because otherwise
+ * a provider would be reported as having no key while the key is right
+ * there in the form.
+ */
+export interface ProviderTest {
+  /** Which provider it is. The key is looked up by this. */
+  id: string;
+  /** The name the user gave it. */
+  name: string;
+  /** The wire format it speaks. */
+  protocol: ProviderProtocol;
+  /** Where the requests go. */
+  baseUrl: string;
+  /** The model to ask for. */
+  model: string;
+  /** Whether the provider needs a key. */
+  requiresKey: boolean;
+  /** The key the user has typed but not yet saved. */
+  apiKey?: string;
+}
+
+/**
  * Checks that a provider answers, so the settings can say whether the key
  * works.
+ *
+ * The provider is sent as the dialog shows it rather than as it was last
+ * saved, so that a change can be tried before the settings are kept.
  */
-export async function testProvider(
-  providerId?: string,
-  model?: string,
-): Promise<string> {
+export async function testProvider(test: ProviderTest): Promise<string> {
   if (!isTauri()) {
     throw new Error(
       'The connection can only be checked in the desktop app, because the key never enters the browser.',
     );
   }
 
-  return invoke<string>('test_provider', { providerId, model });
+  return invoke<string>('test_provider', { test });
 }
 
 /**

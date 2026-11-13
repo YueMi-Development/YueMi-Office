@@ -32,6 +32,12 @@ interface Shell {
   keys: Record<string, string>;
   /** Why the write fails, when it should fail. */
   failure: string | null;
+  /** Why a provider test fails, when it should fail. */
+  testFailure: string | null;
+  /** What the provider answers, when it answers. */
+  answer: string;
+  /** The provider that was tried last, as the dialog sent it. */
+  lastTest: Record<string, unknown> | null;
 }
 
 let shell: Shell;
@@ -74,6 +80,9 @@ function reset(): void {
     aiEnabled: true,
     keys: {},
     failure: null,
+    testFailure: null,
+    answer: "'Mock' answered: ready",
+    lastTest: null,
   };
 
   globalThis.localStorage?.clear();
@@ -104,6 +113,15 @@ function reset(): void {
         shell.keys[id] = key;
       }
       return null;
+    }
+    if (command === 'test_provider') {
+      shell.lastTest = args?.test as Record<string, unknown>;
+      if (shell.testFailure) {
+        // The shell rejects with the reason as a plain value, not as an
+        // Error, so this is how the real failure arrives.
+        throw shell.testFailure;
+      }
+      return shell.answer;
     }
     throw new Error(`unexpected command: ${command}`);
   });
@@ -214,5 +232,69 @@ describe('the settings dialog', () => {
     fireEvent.click(remove);
 
     expect(shell.keys.openai).toBe('sk-old');
+  });
+
+  it('tries the provider as the form shows it', async () => {
+    render(<SettingsDialog onClose={() => {}} />);
+    await screen.findByDisplayValue('Anthropic (Claude)');
+
+    const address = screen.getAllByLabelText('Address')[0] as HTMLInputElement;
+    fireEvent.change(address, { target: { value: 'http://127.0.0.1:9999/v1' } });
+    fireEvent.click(screen.getAllByRole('button', { name: 'Test provider' })[0]);
+
+    await waitFor(() => expect(shell.lastTest).not.toBeNull());
+    expect(shell.lastTest?.baseUrl).toBe('http://127.0.0.1:9999/v1');
+  });
+
+  it('tries the provider with a key that has only been typed', async () => {
+    render(<SettingsDialog onClose={() => {}} />);
+    await screen.findByDisplayValue('Anthropic (Claude)');
+
+    const key = screen.getAllByPlaceholderText('Paste the key')[0] as HTMLInputElement;
+    fireEvent.change(key, { target: { value: 'sk-typed' } });
+    fireEvent.click(screen.getAllByRole('button', { name: 'Test provider' })[0]);
+
+    await waitFor(() => expect(shell.lastTest).not.toBeNull());
+    expect(shell.lastTest?.apiKey).toBe('sk-typed');
+  });
+
+  it('shows the answer with the provider it belongs to', async () => {
+    shell.answer = "'OpenAI' answered: ready";
+
+    render(<SettingsDialog onClose={() => {}} />);
+    await screen.findByDisplayValue('Anthropic (Claude)');
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Test provider' })[1]);
+
+    const answer = await screen.findByText("'OpenAI' answered: ready");
+    const fieldset = answer.closest('fieldset');
+    expect(fieldset?.querySelector('legend')?.textContent).toBe('OpenAI');
+  });
+
+  it('says why the provider did not answer', async () => {
+    shell.testFailure = "'OpenAI' has no key yet.";
+
+    render(<SettingsDialog onClose={() => {}} />);
+    await screen.findByDisplayValue('Anthropic (Claude)');
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Test provider' })[1]);
+
+    await screen.findByText("'OpenAI' has no key yet.");
+  });
+
+  it('drops the answer when the provider changes', async () => {
+    render(<SettingsDialog onClose={() => {}} />);
+    await screen.findByDisplayValue('Anthropic (Claude)');
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Test provider' })[0]);
+    await screen.findByText("'Mock' answered: ready");
+
+    fireEvent.change(screen.getAllByLabelText('Address')[0] as HTMLInputElement, {
+      target: { value: 'http://127.0.0.1:9999/v1' },
+    });
+
+    await waitFor(() =>
+      expect(screen.queryByText("'Mock' answered: ready")).toBeNull(),
+    );
   });
 });

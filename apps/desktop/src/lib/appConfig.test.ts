@@ -98,7 +98,16 @@ describe('the app configuration in the browser', () => {
   });
 
   it('refuses to check the connection, because the key never enters the browser', async () => {
-    await expect(testProvider('anthropic')).rejects.toThrow(
+    await expect(
+      testProvider({
+        id: 'anthropic',
+        name: 'Anthropic (Claude)',
+        protocol: 'anthropic',
+        baseUrl: 'https://api.anthropic.com',
+        model: 'claude-sonnet-4-5',
+        requiresKey: true,
+      }),
+    ).rejects.toThrow(
       'The connection can only be checked in the desktop app, because the key never enters the browser.',
     );
   });

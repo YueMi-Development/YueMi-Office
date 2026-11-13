@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tauri::ipc::Channel;
 
-use crate::config::{self, ProviderConfig};
+use crate::config::{self, ProviderConfig, ProviderProtocol};
 use crate::providers::{
     self, ChatMessage, ContentPart, ProviderEndpoint, ProviderEvent, ProviderRequest, ToolCall,
     ToolDefinition,
@@ -719,38 +719,120 @@ pub fn command_cancel_assistant(cancel: tauri::State<'_, CancelFlag>) -> Result<
     Ok(())
 }
 
-/// Checks that the provider answers, so the settings dialog can say whether
-/// the key works.
-#[tauri::command(rename = "test_provider")]
-pub async fn command_test_provider(
-    provider_id: Option<String>,
-    model: Option<String>,
-) -> Result<String, String> {
-    let config = config::read_config()?;
+/// A provider as the settings dialog shows it, ready to be tried.
+///
+/// The dialog sends the draft rather than the provider that was last
+/// saved, so that the test is of what the user is looking at: a provider
+/// that has just been added, or one whose address has just been changed,
+/// can be tried before the settings are kept.
+///
+/// The key that was saved is not part of it. The key is looked up by the
+/// provider's identifier in the user's home folder, so the webview never
+/// holds one. A key that the user has only just typed is sent, because
+/// otherwise a provider would be reported as having no key while the key
+/// is right there in the form.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderTest {
+    /// Which provider it is. The key is looked up by this.
+    pub id: String,
+    /// The name the user gave it.
+    #[serde(default)]
+    pub name: String,
+    /// The wire format it speaks.
+    pub protocol: ProviderProtocol,
+    /// Where the requests go.
+    #[serde(default)]
+    pub base_url: String,
+    /// The model to ask for.
+    #[serde(default)]
+    pub model: String,
+    /// Whether the provider needs a key.
+    #[serde(default = "needs_a_key_by_default")]
+    pub requires_key: bool,
+    /// The key the user has typed but not yet saved.
+    #[serde(default)]
+    pub api_key: Option<String>,
+}
 
-    let provider = match provider_id {
-        Some(id) => config
-            .providers
-            .iter()
-            .find(|provider| provider.id == id)
-            .cloned()
-            .ok_or_else(|| format!("There is no provider called '{id}'."))?,
-        None => config
-            .providers
-            .first()
-            .cloned()
-            .ok_or_else(|| "There is no provider to test.".to_string())?,
+/// Whether a provider needs a key when the webview does not say.
+fn needs_a_key_by_default() -> bool {
+    true
+}
+
+/// The time a provider is given to answer a test.
+///
+/// A provider that never answers would otherwise leave the button on
+/// "Testing…" for ever, which looks like the app has stopped.
+const TEST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// Tries a provider and says what came back.
+///
+/// The directory is given so that a test can be run against a folder of its
+/// own rather than against the user's own settings.
+pub async fn test_provider_in(
+    directory: &std::path::Path,
+    test: &ProviderTest,
+    timeout: std::time::Duration,
+) -> Result<String, String> {
+    let config = config::read_config_from(directory)?;
+    let saved = config.providers.iter().find(|provider| provider.id == test.id);
+
+    let name = if test.name.trim().is_empty() {
+        saved
+            .map(|provider| provider.name.clone())
+            .unwrap_or_else(|| test.id.clone())
+    } else {
+        test.name.clone()
     };
 
-    let key = config::provider_key(&provider.id);
+    // A field the user has cleared falls back to the saved one, because a
+    // provider with no address has nothing to try.
+    let base_url = if test.base_url.trim().is_empty() {
+        saved
+            .map(|provider| provider.base_url.clone())
+            .unwrap_or_default()
+    } else {
+        test.base_url.clone()
+    };
 
-    if provider.requires_key && key.is_none() {
-        return Err(format!("'{}' has no key yet.", provider.name));
+    if base_url.trim().is_empty() {
+        return Err(format!("'{name}' has no address to try."));
     }
 
-    let model = model
-        .filter(|value| !value.trim().is_empty())
-        .unwrap_or_else(|| provider.model.clone());
+    let model = if test.model.trim().is_empty() {
+        saved
+            .map(|provider| provider.model.clone())
+            .unwrap_or_default()
+    } else {
+        test.model.clone()
+    };
+
+    // A key the user has typed is used as it is, so that a provider is not
+    // reported as having no key while the key is in the form. A key that was
+    // saved is used otherwise, and it never travels to the webview.
+    let typed = test
+        .api_key
+        .as_ref()
+        .map(|key| key.trim().to_string())
+        .filter(|key| !key.is_empty());
+
+    let key = typed.or_else(|| config::provider_key_in(directory, &test.id));
+
+    if test.requires_key && key.is_none() {
+        return Err(format!("'{name}' has no key yet."));
+    }
+
+    let provider = ProviderConfig {
+        id: test.id.clone(),
+        name: name.clone(),
+        protocol: test.protocol,
+        base_url: base_url.clone(),
+        model: model.clone(),
+        models: Vec::new(),
+        supports_images: false,
+        requires_key: test.requires_key,
+    };
 
     let endpoint = providers::endpoint_for(&provider, key);
 
@@ -768,13 +850,36 @@ pub async fn command_test_provider(
         }
     };
 
-    providers::stream_turn(&provider, &endpoint, &request, &mut on_event)
-        .await
-        .map_err(|error| error.message)?;
+    let outcome = tokio::time::timeout(
+        timeout,
+        providers::stream_turn(&provider, &endpoint, &request, &mut on_event),
+    )
+    .await;
 
-    if answer.trim().is_empty() {
-        return Err(format!("'{}' answered with nothing.", provider.name));
+    match outcome {
+        Ok(Ok(_)) => {}
+        Ok(Err(error)) => return Err(error.message),
+        Err(_elapsed) => {
+            return Err(format!(
+                "'{name}' did not answer within {} seconds.",
+                timeout.as_secs()
+            ));
+        }
     }
 
-    Ok(format!("'{}' answered: {}", provider.name, answer.trim()))
+    if answer.trim().is_empty() {
+        return Err(format!("'{name}' answered with nothing."));
+    }
+
+    Ok(format!("'{name}' answered: {}", answer.trim()))
+}
+
+/// Checks that the provider answers, so the settings dialog can say whether
+/// the key works.
+///
+/// The provider is the one the dialog shows rather than the one that was
+/// last saved, so a change can be tried before it is kept.
+#[tauri::command(rename = "test_provider")]
+pub async fn command_test_provider(test: ProviderTest) -> Result<String, String> {
+    test_provider_in(&config::config_directory()?, &test, TEST_TIMEOUT).await
 }
