@@ -149,9 +149,13 @@ jobs:
         run: bun install --frozen-lockfile
 
       # The version of a release is the version of its tag, so the tag's
-      # version is written into the tree before the build.
+      # version is written into the tree before the build. It is passed
+      # in through the environment rather than written into the command.
       - name: Set the version
-        run: bun run scripts/set-version.ts ${{ needs.release.outputs.version }}
+        shell: bash
+        env:
+          VERSION: ${{ needs.release.outputs.version }}
+        run: bun run scripts/set-version.ts "$VERSION"
 
       # The lockfile records the version of the workspace packages, so it
       # is written again after the version has changed.
