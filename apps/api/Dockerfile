@@ -13,9 +13,13 @@
 #   docker build -f apps/api/Dockerfile --target runtime -t yuemi-api .
 #   docker build -f apps/api/Dockerfile --target test -t yuemi-api:test .
 #
-# The image has two targets:
+# The image has three targets:
 #
 #   runtime — the service itself.
+#   lint    — the linter of the service, and nothing else. It is built and
+#             run by the lint script, so the lint happens against the
+#             Python of the image rather than against whatever Python the
+#             runner happens to have.
 #   test    — the same service plus the tools the visual tests need. The
 #             visual tests run inside this image on every operating system,
 #             so the pages they compare were produced by one pinned stack
@@ -59,6 +63,22 @@ RUN pip install --no-cache-dir .
 EXPOSE 32100
 
 CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port $(python -c 'from app.service import SERVICE_PORT; print(SERVICE_PORT)')"]
+
+FROM base AS lint
+
+COPY apps/api/pyproject.toml ./
+COPY apps/api/app ./app
+COPY apps/api/tests ./tests
+COPY apps/api/scripts ./scripts
+
+# Only the linter is needed here, and not the service itself, so the image
+# stays small. The version is the one the dev extra pins, so the lint says
+# the same thing on a runner as it does on a workstation.
+RUN pip install --no-cache-dir "ruff==0.17.4"
+
+# The rules live in pyproject.toml, next to the files they apply to, so the
+# tree of the service carries its own rules.
+CMD ["sh", "-c", "ruff check . && ruff format --check ."]
 
 FROM base AS test
 

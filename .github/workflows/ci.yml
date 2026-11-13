@@ -94,6 +94,46 @@ jobs:
         shell: bash
         run: .github/scripts/visual-check.sh
 
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri -> target
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # The scripts are shell scripts, and a runner on Windows runs a step
+      # in PowerShell by default, which cannot run them. This job runs on
+      # Linux, but the shell is asked for anyway so that the rule the
+      # workflow scanner checks stays true here too.
+      - name: Lint the frontend
+        shell: bash
+        run: .github/scripts/lint-frontend.sh
+
+      - name: Lint the Rust side
+        shell: bash
+        run: .github/scripts/lint-rust.sh
+
+      # The backend lint runs inside the render image, so it sees the same
+      # Python as the service that ships.
+      - name: Lint the render service
+        shell: bash
+        run: .github/scripts/lint-backend.sh
+
   frontend:
     name: Frontend tests
     runs-on: ubuntu-latest
