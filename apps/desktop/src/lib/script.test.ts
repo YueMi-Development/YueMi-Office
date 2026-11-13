@@ -13,10 +13,7 @@ const TOOLS = [
 
 describe('parseScript', () => {
   it('reads a list of calls', () => {
-    const calls = parseScript(
-      '[{"name": "list_sections", "arguments": {}}]',
-      TOOLS,
-    );
+    const calls = parseScript('[{"name": "list_sections", "arguments": {}}]', TOOLS);
 
     expect(calls).toHaveLength(1);
     expect(calls[0].name).toBe('list_sections');
@@ -31,10 +28,7 @@ describe('parseScript', () => {
   });
 
   it('gives every call an identifier', () => {
-    const calls = parseScript(
-      '[{"name": "list_sections"}, {"name": "search"}]',
-      TOOLS,
-    );
+    const calls = parseScript('[{"name": "list_sections"}, {"name": "search"}]', TOOLS);
 
     expect(calls[0].id).toBe('call-1');
     expect(calls[1].id).toBe('call-2');

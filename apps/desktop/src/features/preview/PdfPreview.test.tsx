@@ -65,11 +65,11 @@ vi.mock('pdfjs-dist', () => ({
  * context that records nothing is enough.
  */
 function stubCanvasContext(): void {
-  HTMLCanvasElement.prototype.getContext = vi.fn(
-    function getContext(this: HTMLCanvasElement) {
-      return { canvas: this } as unknown as CanvasRenderingContext2D;
-    },
-  ) as unknown as typeof HTMLCanvasElement.prototype.getContext;
+  HTMLCanvasElement.prototype.getContext = vi.fn(function getContext(
+    this: HTMLCanvasElement,
+  ) {
+    return { canvas: this } as unknown as CanvasRenderingContext2D;
+  }) as unknown as typeof HTMLCanvasElement.prototype.getContext;
 }
 
 describe('PdfPreview', () => {
@@ -119,10 +119,7 @@ describe('PdfPreview', () => {
   });
 
   it('paints the page at the resolution of the screen', async () => {
-    const original = Object.getOwnPropertyDescriptor(
-      window,
-      'devicePixelRatio',
-    );
+    const original = Object.getOwnPropertyDescriptor(window, 'devicePixelRatio');
 
     Object.defineProperty(window, 'devicePixelRatio', {
       value: 2,
@@ -141,9 +138,7 @@ describe('PdfPreview', () => {
       const painted = paintedPages[paintedPages.length - 1];
       expect(painted?.options.transform).toEqual([2, 0, 0, 2, 0, 0]);
 
-      const canvas = document.querySelector<HTMLCanvasElement>(
-        'canvas.preview-canvas',
-      );
+      const canvas = document.querySelector<HTMLCanvasElement>('canvas.preview-canvas');
       expect(canvas?.width).toBe(200);
       expect(canvas?.height).toBe(200);
       expect(canvas?.style.width).toBe('100px');

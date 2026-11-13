@@ -46,8 +46,7 @@ const debug = flags.includes('--debug');
 
 /** The bundles to build, when the script was told which ones. */
 const bundlesIndex = flags.indexOf('--bundles');
-const bundles =
-  bundlesIndex === -1 ? null : (flags[bundlesIndex + 1] ?? null);
+const bundles = bundlesIndex === -1 ? null : (flags[bundlesIndex + 1] ?? null);
 
 /** The arguments the Tauri CLI is given. */
 const args = ['build'];
@@ -73,11 +72,11 @@ process.stdout.write('\n');
 
 const root = resolve(import.meta.dir, '..');
 
-const child = spawn(
-  'bun',
-  ['run', '--cwd', 'apps/desktop', 'tauri', ...args],
-  { cwd: root, stdio: 'inherit', shell: process.platform === 'win32' },
-);
+const child = spawn('bun', ['run', '--cwd', 'apps/desktop', 'tauri', ...args], {
+  cwd: root,
+  stdio: 'inherit',
+  shell: process.platform === 'win32',
+});
 
 child.on('exit', (code, signal) => {
   if (signal) {

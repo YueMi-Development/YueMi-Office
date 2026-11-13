@@ -206,8 +206,6 @@ export const useAssistantStore = create<AssistantState>((set, get) => ({
       // A change is answered once it has been rejected or once every one of
       // its hunks has been decided. A change where only some hunks were
       // decided stays, because the rest still needs a decision.
-      pending: state.pending.filter(
-        (entry) => !entry.rejected && !isAnswered(entry),
-      ),
+      pending: state.pending.filter((entry) => !entry.rejected && !isAnswered(entry)),
     })),
 }));

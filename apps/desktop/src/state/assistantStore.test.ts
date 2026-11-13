@@ -124,9 +124,7 @@ describe('useAssistantStore', () => {
 
     useProjectStore.getState().undo();
 
-    expect(useProjectStore.getState().files['content/a.md']).toBe(
-      'one\ntwo\nthree\n',
-    );
+    expect(useProjectStore.getState().files['content/a.md']).toBe('one\ntwo\nthree\n');
   });
 
   it('does not put the same change in twice', () => {

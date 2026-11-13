@@ -25,13 +25,11 @@ describe('usePreviewStore', () => {
   });
 
   it('does not render before the debounce elapses', async () => {
-    const renderSpy = vi
-      .spyOn(api, 'renderProject')
-      .mockResolvedValue({
-        pdf: new Uint8Array([1, 2, 3]),
-        outline: { entries: [], pageCount: 1 },
-        warnings: [],
-      });
+    const renderSpy = vi.spyOn(api, 'renderProject').mockResolvedValue({
+      pdf: new Uint8Array([1, 2, 3]),
+      outline: { entries: [], pageCount: 1 },
+      warnings: [],
+    });
 
     usePreviewStore.getState().requestRender();
 
@@ -43,13 +41,11 @@ describe('usePreviewStore', () => {
   });
 
   it('collapses rapid requests into one render', async () => {
-    const renderSpy = vi
-      .spyOn(api, 'renderProject')
-      .mockResolvedValue({
-        pdf: new Uint8Array([1]),
-        outline: { entries: [], pageCount: 1 },
-        warnings: [],
-      });
+    const renderSpy = vi.spyOn(api, 'renderProject').mockResolvedValue({
+      pdf: new Uint8Array([1]),
+      outline: { entries: [], pageCount: 1 },
+      warnings: [],
+    });
 
     usePreviewStore.getState().requestRender();
     await vi.advanceTimersByTimeAsync(100);
@@ -66,9 +62,7 @@ describe('usePreviewStore', () => {
     vi.spyOn(api, 'renderProject').mockResolvedValue({
       pdf: new Uint8Array([1, 2, 3]),
       outline: {
-        entries: [
-          { title: 'Intro', level: 1, page: 0, anchor: 'intro', children: [] },
-        ],
+        entries: [{ title: 'Intro', level: 1, page: 0, anchor: 'intro', children: [] }],
         pageCount: 2,
       },
       warnings: [{ code: 'font.missing', message: 'Font not found' }],
@@ -100,8 +94,8 @@ describe('usePreviewStore', () => {
   });
 
   it('discards a stale response when a newer request was made', async () => {
-    let resolveFirst: ((value: Awaited<ReturnType<typeof api.renderProject>>) => void) | null =
-      null;
+    let resolveFirst:
+      ((value: Awaited<ReturnType<typeof api.renderProject>>) => void) | null = null;
 
     const renderSpy = vi
       .spyOn(api, 'renderProject')
@@ -130,8 +124,7 @@ describe('usePreviewStore', () => {
 
     // The first render resolves late; it must not overwrite the newer result.
     const lateResolve = resolveFirst as
-      | ((value: Awaited<ReturnType<typeof api.renderProject>>) => void)
-      | null;
+      ((value: Awaited<ReturnType<typeof api.renderProject>>) => void) | null;
     lateResolve?.({
       pdf: new Uint8Array([1]),
       outline: { entries: [], pageCount: 99 },

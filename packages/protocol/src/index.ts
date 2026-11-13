@@ -46,7 +46,17 @@ export {
 } from './diff';
 
 /** Page sizes WeasyPrint understands. */
-export const PAGE_SIZES = ['A0', 'A1', 'A2', 'A3', 'A4', 'A5', 'Letter', 'Legal', 'Tabloid'] as const;
+export const PAGE_SIZES = [
+  'A0',
+  'A1',
+  'A2',
+  'A3',
+  'A4',
+  'A5',
+  'Letter',
+  'Legal',
+  'Tabloid',
+] as const;
 
 export type PageSize = (typeof PAGE_SIZES)[number];
 
@@ -59,13 +69,7 @@ export interface PageConfig {
 
 /** PDF output flavour, e.g. `pdf/a-3b` for an archival variant. */
 export type PdfVariant =
-  | 'pdf/a-1b'
-  | 'pdf/a-2b'
-  | 'pdf/a-3b'
-  | 'pdf/a-2u'
-  | 'pdf/a-3u'
-  | 'pdf/ua-1'
-  | null;
+  'pdf/a-1b' | 'pdf/a-2b' | 'pdf/a-3b' | 'pdf/a-2u' | 'pdf/a-3u' | 'pdf/ua-1' | null;
 
 /**
  * The `project.json` file that marks a folder as a document project.
@@ -362,8 +366,7 @@ export interface AppConfigView {
 
 /** A part of a message. */
 export type ContentPart =
-  | { kind: 'text'; text: string }
-  | { kind: 'image'; base64: string; mimeType: string };
+  { kind: 'text'; text: string } | { kind: 'image'; base64: string; mimeType: string };
 
 /** A message in the conversation with the assistant. */
 export interface ChatMessage {

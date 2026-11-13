@@ -116,11 +116,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   addUserMessage: (text) =>
     set((state) => ({
-      messages: [
-        ...state.messages,
-        { id: nextId(), role: 'user', text, tools: [] },
+      messages: [...state.messages, { id: nextId(), role: 'user', text, tools: [] }],
+      transcript: [
+        ...state.transcript,
+        { role: 'user', content: [{ kind: 'text', text }] },
       ],
-      transcript: [...state.transcript, { role: 'user', content: [{ kind: 'text', text }] }],
     })),
 
   beginRun: () =>
@@ -172,7 +172,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
                   tools: message.tools.some((tool) => tool.id === event.id)
                     ? message.tools.map((tool) =>
                         tool.id === event.id
-                          ? { ...tool, ok: event.ok, error: event.error, pending: false }
+                          ? {
+                              ...tool,
+                              ok: event.ok,
+                              error: event.error,
+                              pending: false,
+                            }
                           : tool,
                       )
                     : [

@@ -146,7 +146,9 @@ describe('the chat store', () => {
 
   it('keeps what was said when a run fails', () => {
     useChatStore.getState().beginRun();
-    useChatStore.getState().handleEvent({ type: 'text', text: 'I looked at the title.' });
+    useChatStore
+      .getState()
+      .handleEvent({ type: 'text', text: 'I looked at the title.' });
     useChatStore.getState().failRun('The provider refused the key.');
 
     const messages = useChatStore.getState().messages;

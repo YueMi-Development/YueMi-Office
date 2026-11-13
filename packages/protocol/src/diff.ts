@@ -77,10 +77,7 @@ export function changesOfHunks(hunks: DiffHunk[]): DiffChange[] {
  * whatever the file holds now. That keeps the result the same whether the
  * user accepted one hunk or all of them.
  */
-export function applyEdit(
-  edit: ProposedEdit,
-  acceptedHunks: DiffHunk[],
-): string {
+export function applyEdit(edit: ProposedEdit, acceptedHunks: DiffHunk[]): string {
   if (acceptedHunks.length === 0) {
     return edit.oldText;
   }
@@ -96,7 +93,8 @@ export function describeEdit(edit: ProposedEdit): string {
     0,
   );
   const removed = edit.hunks.reduce(
-    (total, hunk) => total + hunk.lines.filter((line) => line.kind === 'removed').length,
+    (total, hunk) =>
+      total + hunk.lines.filter((line) => line.kind === 'removed').length,
     0,
   );
 

@@ -70,12 +70,8 @@ function buildTemplate(id: string, definition: TemplateDefinition): DocumentTemp
     ([path, text]) => ({ path, text }),
   );
 
-  const content = files
-    .map((file) => file.path)
-    .filter((path) => path.endsWith('.md'));
-  const styles = files
-    .map((file) => file.path)
-    .filter((path) => path.endsWith('.css'));
+  const content = files.map((file) => file.path).filter((path) => path.endsWith('.md'));
+  const styles = files.map((file) => file.path).filter((path) => path.endsWith('.css'));
 
   const project: Project = {
     schemaVersion: PROJECT_SCHEMA_VERSION,

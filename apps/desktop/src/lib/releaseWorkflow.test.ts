@@ -46,9 +46,7 @@ describe('the release workflow', () => {
     expect(prepare).toBeDefined();
     expect(bundle).toBeDefined();
     expect(release).toContain('needs: release');
-    expect(release).toContain(
-      'releaseId: ${{ needs.release.outputs.release_id }}',
-    );
+    expect(release).toContain('releaseId: ${{ needs.release.outputs.release_id }}');
   });
 
   it('does not let each platform job create the release', () => {

@@ -53,7 +53,9 @@ export function modelValue(providerId: string, model: string): string {
 /**
  * The provider and the model of a value.
  */
-export function parseModelValue(value: string): { providerId: string; model: string } | null {
+export function parseModelValue(
+  value: string,
+): { providerId: string; model: string } | null {
   const separator = value.indexOf('::');
   if (separator < 0) {
     return null;

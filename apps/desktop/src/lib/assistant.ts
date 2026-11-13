@@ -20,9 +20,7 @@ export interface SessionOutcome {
 /**
  * Runs a set of tool calls against the project as it is now.
  */
-export async function runToolCalls(
-  calls: AiToolCall[],
-): Promise<SessionOutcome> {
+export async function runToolCalls(calls: AiToolCall[]): Promise<SessionOutcome> {
   const projectState = useProjectStore.getState();
 
   const { fonts, assets } = await loadProjectBinaries(

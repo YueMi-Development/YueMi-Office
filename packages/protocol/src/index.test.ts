@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  PAGE_SIZES,
-  PROJECT_SCHEMA_VERSION,
-  type Project,
-} from './index';
+import { PAGE_SIZES, PROJECT_SCHEMA_VERSION, type Project } from './index';
 
 /**
  * The protocol package holds the contract between the desktop app and the

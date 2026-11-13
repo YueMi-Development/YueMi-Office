@@ -35,9 +35,7 @@ export function parseScript(text: string, toolNames: string[]): AiToolCall[] {
   try {
     parsed = JSON.parse(text);
   } catch (error) {
-    throw new ScriptError(
-      `The script is not valid JSON: ${(error as Error).message}`,
-    );
+    throw new ScriptError(`The script is not valid JSON: ${(error as Error).message}`);
   }
 
   const entries = Array.isArray(parsed)
@@ -71,6 +69,9 @@ export function parseScript(text: string, toolNames: string[]): AiToolCall[] {
 /**
  * Runs a script against the current project.
  */
-export async function runScript(text: string, toolNames: string[]): Promise<SessionOutcome> {
+export async function runScript(
+  text: string,
+  toolNames: string[],
+): Promise<SessionOutcome> {
   return runToolCalls(parseScript(text, toolNames));
 }

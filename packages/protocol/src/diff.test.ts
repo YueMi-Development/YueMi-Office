@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { DiffChange, DiffHunk, ProposedEdit } from './index';
 
-import { applyChanges, applyEdit, changesOfHunks, describeEdit, splitLines } from './diff';
+import {
+  applyChanges,
+  applyEdit,
+  changesOfHunks,
+  describeEdit,
+  splitLines,
+} from './diff';
 
 function change(oldStart: number, oldCount: number, ...newLines: string[]): DiffChange {
   return { oldStart, oldCount, newLines };
@@ -58,9 +64,7 @@ describe('applyChanges', () => {
   });
 
   it('adds a line without removing one', () => {
-    expect(applyChanges('one\ntwo\n', [change(2, 0, 'new\n')])).toBe(
-      'one\nnew\ntwo\n',
-    );
+    expect(applyChanges('one\ntwo\n', [change(2, 0, 'new\n')])).toBe('one\nnew\ntwo\n');
   });
 
   it('removes a line without adding one', () => {

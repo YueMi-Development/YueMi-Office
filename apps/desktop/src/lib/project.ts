@@ -104,7 +104,10 @@ export function validateProject(value: unknown): ProjectValidationIssue[] {
       issues.push({ path: 'page.size', message: `Unknown page size.` });
     }
     if (!isOrientation(project.page.orientation)) {
-      issues.push({ path: 'page.orientation', message: 'Must be portrait or landscape.' });
+      issues.push({
+        path: 'page.orientation',
+        message: 'Must be portrait or landscape.',
+      });
     }
   }
 

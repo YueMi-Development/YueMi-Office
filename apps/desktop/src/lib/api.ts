@@ -185,9 +185,7 @@ export async function listAiTools(): Promise<AiToolDescription[]> {
  * access to the user's disk. The changes the calls propose come back for
  * the user to accept or reject.
  */
-export async function runAiSession(
-  request: AiSessionRequest,
-): Promise<AiSession> {
+export async function runAiSession(request: AiSessionRequest): Promise<AiSession> {
   const response = await fetch(`${baseUrl}/v1/ai/session`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

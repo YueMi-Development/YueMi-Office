@@ -63,7 +63,12 @@ export function ContextDonut({ used, window, estimated }: ContextDonutProps) {
         estimated ? ' (estimated)' : ''
       }`}
     >
-      <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`} aria-hidden="true">
+      <svg
+        width={SIZE}
+        height={SIZE}
+        viewBox={`0 0 ${SIZE} ${SIZE}`}
+        aria-hidden="true"
+      >
         <circle
           className="chat-donut-track"
           cx={SIZE / 2}

@@ -106,7 +106,10 @@ describe('the configuration store', () => {
     useConfigStore.setState({
       config: {
         providers: [
-          { ...makeProvider({ id: 'a', name: 'A', model: 'default-model' }), hasKey: true },
+          {
+            ...makeProvider({ id: 'a', name: 'A', model: 'default-model' }),
+            hasKey: true,
+          },
         ],
         activeProviderId: null,
         activeModel: 'other-model',
@@ -122,7 +125,10 @@ describe('the configuration store', () => {
     useConfigStore.setState({
       config: {
         providers: [
-          { ...makeProvider({ id: 'a', name: 'A', model: 'default-model' }), hasKey: true },
+          {
+            ...makeProvider({ id: 'a', name: 'A', model: 'default-model' }),
+            hasKey: true,
+          },
         ],
         activeProviderId: null,
         activeModel: null,

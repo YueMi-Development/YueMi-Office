@@ -1,5 +1,10 @@
 import { Channel, invoke } from '@tauri-apps/api/core';
-import type { AssistantEvent, AssistantMode, ChatMessage, ChatRequest } from '@yuemi/protocol';
+import type {
+  AssistantEvent,
+  AssistantMode,
+  ChatMessage,
+  ChatRequest,
+} from '@yuemi/protocol';
 
 import { loadProjectBinaries } from './projectAssets';
 import { useProjectStore } from '../state/projectStore';

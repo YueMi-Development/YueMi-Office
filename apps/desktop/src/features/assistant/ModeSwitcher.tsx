@@ -36,9 +36,7 @@ export function ModeSwitcher({ mode, onChange }: ModeSwitcherProps) {
         <button
           key={entry.value}
           type="button"
-          className={
-            mode === entry.value ? 'chat-mode chat-mode-active' : 'chat-mode'
-          }
+          className={mode === entry.value ? 'chat-mode chat-mode-active' : 'chat-mode'}
           aria-pressed={mode === entry.value}
           title={entry.hint}
           onClick={() => onChange(entry.value)}

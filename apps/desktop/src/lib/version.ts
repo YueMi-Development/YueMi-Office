@@ -188,11 +188,7 @@ export function setPyprojectVersion(contents: string, version: string): string {
  * The table is found by its header, and the line is found inside it, so
  * that a `version` of a dependency or of another table is left alone.
  */
-function setTableVersion(
-  contents: string,
-  table: string,
-  version: string,
-): string {
+function setTableVersion(contents: string, table: string, version: string): string {
   const lines = contents.split('\n');
   let inTable = false;
 
@@ -405,10 +401,7 @@ export function applyVersion(files: VersionFiles, version: string): VersionFiles
  * cannot be found, so that a file which was written wrongly is reported
  * rather than skipped.
  */
-export function versionInFile(
-  key: VersionFileKey,
-  contents: string,
-): string | null {
+export function versionInFile(key: VersionFileKey, contents: string): string | null {
   switch (key) {
     case 'cargoToml':
       return tableVersion(contents, '[package]');
@@ -440,9 +433,7 @@ export function versionInFile(
         return null;
       }
 
-      const match = /version\s*=\s*["']([^"']*)["']/.exec(
-        contents.slice(start, end),
-      );
+      const match = /version\s*=\s*["']([^"']*)["']/.exec(contents.slice(start, end));
 
       return match ? match[1] : null;
     }

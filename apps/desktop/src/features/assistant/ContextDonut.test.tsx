@@ -14,7 +14,9 @@ describe('the context ring', () => {
   it('is drawn when the size of the context is known', () => {
     render(<ContextDonut used={18000} window={200000} estimated={false} />);
 
-    expect(screen.getByRole('img', { name: 'Context: 18k of 200k tokens' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('img', { name: 'Context: 18k of 200k tokens' }),
+    ).toBeInTheDocument();
   });
 
   it('is not drawn when the size of the context is not known', () => {
