@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
 import ci from '../../../../.github/workflows/ci.yml?raw';
+import release from '../../../../.github/workflows/release.yml?raw';
 import dockerfile from '../../../../apps/api/Dockerfile?raw';
 import eslintConfig from '../../../../eslint.config.mjs?raw';
+import gitattributes from '../../../../.gitattributes?raw';
 import prettierConfig from '../../../../.prettierrc.json?raw';
 import prettierIgnore from '../../../../.prettierignore?raw';
 import packageJson from '../../../../package.json?raw';
+import prePush from '../../../../.husky/pre-push?raw';
 import lintBackend from '../../../../.github/scripts/lint-backend.sh?raw';
 import lintFrontend from '../../../../.github/scripts/lint-frontend.sh?raw';
 import lintRust from '../../../../.github/scripts/lint-rust.sh?raw';
@@ -27,6 +30,10 @@ import { brokenSteps, readJobs } from './workflowScan';
  * So the rule is checked here: every script under `.github/scripts` is
  * called by the workflow, and the workflow asks for a shell that can run a
  * shell script.
+ *
+ * The same linters run before a push, through the hook under `.husky`, so
+ * a mistake is found while it is still in the working tree rather than
+ * after the branch is on the server.
  */
 
 /** The lint scripts, by the language they lint. */
@@ -242,5 +249,61 @@ describe('the linters', () => {
     expect(prettierIgnore).toContain('*.yaml');
     expect(prettierIgnore).toContain('packages/protocol/src/fixtures/');
     expect(prettierIgnore).toContain('apps/api/tests/visual/baseline/');
+  });
+});
+
+describe('the hook that runs before a push', () => {
+  it('is installed by the install', () => {
+    // The hooks are installed by `bun install`, because that is the one
+    // command every contributor runs after a clone. A hook that has to be
+    // installed by hand is a hook that half the contributors do not have.
+    const manifest = JSON.parse(packageJson) as {
+      scripts: Record<string, string>;
+      devDependencies: Record<string, string>;
+    };
+
+    expect(manifest.scripts.prepare).toContain('husky');
+    expect(manifest.devDependencies.husky).toBeDefined();
+  });
+
+  it('calls the same linters the workflow calls', () => {
+    // One set of lint rules and not two. A hook that ran a lint of its own
+    // would be a lint that drifts away from the one the CI runs, and the
+    // two would disagree about what a clean tree is.
+    for (const script of Object.keys(SCRIPTS)) {
+      expect(prePush).toContain(`.github/scripts/lint-${script}.sh`);
+    }
+  });
+
+  it('runs the scripts with a shell that is always there', () => {
+    // The hook runner uses the same shell everywhere, so a script that
+    // needed a shell that is not always there would fail on the machine of
+    // the person who pushes rather than on a runner. The scripts carry the
+    // shell they need in their shebang.
+    expect(prePush).not.toContain('bash .github/scripts');
+    expect(prePush).toContain('sh .github/scripts');
+  });
+
+  it('does not carry the shim that the next version of the runner drops', () => {
+    // The runner warns that the two lines the older examples show fail in
+    // the next version. A hook that carries them stops working when the
+    // runner is updated, and it stops working silently.
+    expect(prePush).not.toContain('_/husky.sh');
+  });
+
+  it('keeps the hooks on one line ending', () => {
+    // The hook has no extension, so the rule that keeps the shell scripts
+    // on one line ending does not reach it. A hook with a carriage return
+    // at the end of its lines fails on the first line.
+    expect(gitattributes).toContain('.husky/* text eol=lf');
+  });
+
+  it('is not installed on a runner', () => {
+    // The hooks are for the machine of the person who pushes. A runner has
+    // no push to guard, and pointing it at a directory of hooks that
+    // nothing runs would only make the build depend on them.
+    for (const workflow of [ci, release]) {
+      expect(workflow).toContain('HUSKY: "0"');
+    }
   });
 });
