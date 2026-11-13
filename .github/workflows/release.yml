@@ -1,0 +1,179 @@
+name: Release
+
+# A release is built from a tag, and only from a tag. The tag names the
+# version: `v1.0.0` for a release and `v1.0.0-beta` for a pre-release.
+#
+# The ordinary CI workflow builds the app on every push, but it builds no
+# installers, because bundling is slow: a disk image on macOS, an
+# installer and an MSI on Windows, three packages on Linux. That work
+# belongs here, where it happens once per release.
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  # A release that is already being built should not be stopped halfway.
+  cancel-in-progress: false
+
+env:
+  BUN_VERSION: "1.3.14"
+
+jobs:
+  release:
+    name: Prepare the release
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      release_id: ${{ steps.create.outputs.release_id }}
+    steps:
+      - uses: actions/checkout@v7
+
+      # The tag is the version. A tag that does not name a version is
+      # refused here, with a message that says so, rather than being
+      # discovered by the bundler on one of three runners.
+      #
+      # The tag is passed in through the environment rather than written
+      # into the script, because a tag is not a safe thing to paste into
+      # a shell.
+      - name: Read the version from the tag
+        id: version
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          if [[ ! "$TAG" =~ ^v([0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?)$ ]]; then
+            echo "::error::The tag $TAG does not name a version. A tag is a v and three numbers, an optional pre-release identifier and optional build metadata: v1.0.0, v1.0.0-beta."
+            exit 1
+          fi
+
+          version="${BASH_REMATCH[1]}"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+          # A tag with a dash in it names a pre-release, and GitHub shows
+          # those as pre-releases rather than as finished releases.
+          if [[ "$version" == *-* ]]; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          echo "Building yuemi $version."
+
+      # The release is created once, here, and the three platform jobs
+      # upload into it. If each of them created it, they would race.
+      # The release is fetched first when it already exists, so that a
+      # re-run of a failed workflow adds to it rather than failing.
+      - name: Create the release
+        id: create
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+          VERSION: ${{ steps.version.outputs.version }}
+          PRERELEASE: ${{ steps.version.outputs.prerelease }}
+        run: |
+          if gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" > release.json 2>/dev/null; then
+            echo "The release for $TAG already exists."
+          else
+            notes="yuemi $VERSION, built from $TAG.
+
+            The installers are not signed. macOS and Windows will warn about
+            an application from an unknown developer."
+
+            if [ "$PRERELEASE" = "true" ]; then
+              gh api --method POST "repos/$GITHUB_REPOSITORY/releases" \
+                -f tag_name="$TAG" \
+                -f target_commitish="$GITHUB_SHA" \
+                -f name="yuemi $VERSION" \
+                -f body="$notes" \
+                -F prerelease=true > release.json
+            else
+              gh api --method POST "repos/$GITHUB_REPOSITORY/releases" \
+                -f tag_name="$TAG" \
+                -f target_commitish="$GITHUB_SHA" \
+                -f name="yuemi $VERSION" \
+                -f body="$notes" > release.json
+            fi
+          fi
+
+          echo "release_id=$(jq -r .id release.json)" >> "$GITHUB_OUTPUT"
+
+  bundle:
+    name: Bundle ${{ matrix.platform }}
+    needs: release
+    runs-on: ${{ matrix.platform }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v7
+
+      # The AppImage is built by a tool that runs inside a FUSE mount, and
+      # the webview and the tray icon need the libraries below.
+      #
+      # The FUSE library was renamed when Ubuntu 24.04 moved to 64-bit
+      # time_t, so both names are tried. The build works without it,
+      # because the tool is asked to extract itself rather than to mount
+      # anything, but a runner that has it saves the tool a step.
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev libayatana-appindicator3-dev \
+            librsvg2-dev patchelf xdg-utils file wget xz-utils
+          sudo apt-get install -y --no-install-recommends libfuse2t64 \
+            || sudo apt-get install -y --no-install-recommends libfuse2
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri -> target
+
+      # The committed lockfile is the one the tests ran against, so it is
+      # installed as it is.
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # The version of a release is the version of its tag, so the tag's
+      # version is written into the tree before the build.
+      - name: Set the version
+        run: bun run scripts/set-version.ts ${{ needs.release.outputs.version }}
+
+      # The lockfile records the version of the workspace packages, so it
+      # is written again after the version has changed.
+      - name: Update the lockfile
+        run: bun install
+
+      - name: Build the installers
+        uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: apps/desktop
+          # The release was made by the step above, so the action only
+          # has to upload into it. The action creates a release itself
+          # when it is given a tag, and three jobs doing that would
+          # race each other.
+          releaseId: ${{ needs.release.outputs.release_id }}
+          # There is no updater keypair yet, so there is no updater
+          # manifest to publish.
+          uploadUpdaterJson: false
+          # The bare executable is useful on its own, next to the
+          # installers.
+          uploadPlainBinary: true
+          # The artifacts are on the run page as well as on the release.
+          uploadWorkflowArtifacts: true

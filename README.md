@@ -132,11 +132,35 @@ docker build -f apps/api/Dockerfile --target runtime -t yuemi-api .
 docker run --rm -p 32100:32100 yuemi-api
 ```
 
+## Building a binary
+
+The installers for the platform you are on are built with one command:
+
+```bash
+bun run build:desktop
+```
+
+It prints what the platform needs before it starts, then runs `tauri build`. The
+output lands in `apps/desktop/src-tauri/target/release/bundle`:
+
+| Platform | Files |
+|---|---|
+| Windows | `yuemi_<version>_x64_en-US.msi`, `yuemi_<version>_x64-setup.exe` |
+| macOS | `yuemi_<version>_aarch64.dmg`, `yuemi.app.tar.gz` |
+| Linux | `yuemi_<version>_amd64.deb`, `yuemi-<version>-1.x86_64.rpm`, `yuemi_<version>_amd64.AppImage` |
+
+The version in the file names comes from `apps/desktop/src-tauri/tauri.conf.json`.
+`bun run set-version 1.0.0-beta` puts a different one there and in the other
+files that carry it.
+
+The builds are not signed. Windows and macOS will warn about an application
+from an unknown developer.
+
 ## Tests
 
 ```bash
 cd apps/api && pytest                    # 144 tests
-bun run test                             # 183 tests
+bun run test                             # 209 tests
 cd apps/desktop/src-tauri && cargo test  # 100 tests
 ```
 
@@ -161,6 +185,19 @@ line continuation, so a command spread over several lines that way never
 parses there. A test checks that rule for the whole workflow file, because
 nothing else in the suite looks at it.
 
+## Releases
+
+A release is built from a tag, and only from a tag. Pushing a tag that names
+a version — `v1.0.0` or `v1.0.0-beta` — runs
+[.github/workflows/release.yml](.github/workflows/release.yml), which builds
+the installers for Windows, macOS and Linux and attaches them to a GitHub
+Release. A tag with a dash in it is published as a pre-release.
+
+The tag's version is written into the tree before the build, so the
+installers, the packages and the release page all carry the same number.
+See [Building a binary](#building-a-binary) for what the installers are
+called.
+
 ## Status
 
 | Milestone | Contents | State |
@@ -169,4 +206,4 @@ nothing else in the suite looks at it.
 | M2 | Templates, font bundling, render warnings, visual regression tests | Done |
 | M3 | AI tool layer, diff UI, snapshots | Done |
 | M4 | AI chat, streaming, render feedback loop, providers, settings | Done |
-| M5 | Packaging, signing, auto-update | Planned |
+| M5 | Packaging, signing, auto-update | In progress — packaging done, signing and auto-update planned |
