@@ -5,11 +5,12 @@ with CSS. An AI assistant will work on the project the way a coding agent
 works on a repository: it reads the source, proposes edits as reviewable
 diffs, and checks the rendered result.
 
-This repository is at **M3 (AI tools without chat)**: the project format, the
-editor, the render pipeline, the PDF preview, export, templates, bundled
-fonts, render warnings, visual regression tests, and the assistant's tool
-layer with a reviewable diff for every change it proposes. The chat
-interface lands in M4.
+This repository is at **M4 (AI chat)**: the project format, the editor, the
+render pipeline, the PDF preview, export, templates, bundled fonts, render
+warnings, visual regression tests, the assistant's tool layer with a
+reviewable diff for every change it proposes, and the chat itself — the
+agent loop, the streaming answer, and the rendered pages shown back to the
+model after a change that moves the layout.
 
 See [docs/PRD-markdown-document-studio.md](docs/PRD-markdown-document-studio.md)
 for the full product requirements.
@@ -43,6 +44,45 @@ operating system.
 The PDF preview is not an approximation of the export. Both come from the
 same render, and the bytes the preview shows are the bytes the export
 writes. They cannot drift apart, because there is only one of them.
+
+## The assistant
+
+The assistant is a loop rather than a single question. It sends the
+conversation to the provider, runs the tools the model asks for, sends the
+results back, and goes round again until the model answers without asking
+for anything. A change that affects the layout is rendered and the pages
+are shown to the model, so it can see what it did rather than only being
+told.
+
+The model never writes a file. Every change goes through `propose_edit` or
+`set_style` and reaches the document only after the user accepts it.
+
+Six tools are on offer: `list_sections`, `read_section`, `search`,
+`propose_edit`, `set_style` and `render_preview`.
+
+### Providers and keys
+
+Three wire formats are supported: Anthropic's Messages API, OpenAI's Chat
+Completions API, and any other server that speaks the second one — Ollama,
+LM Studio, OpenRouter, vLLM. A custom provider is added in the settings
+dialog by giving it an address and a format.
+
+The keys live in the user's home folder, under `~/.yuemi-office/`:
+
+```
+~/.yuemi-office/
+├── config.json       the providers, the active model, the settings
+└── credentials.json  the API keys, one per provider
+```
+
+They are kept apart because `config.json` is the file a user would paste
+into an issue, and a key in it would be a leak. The key never travels back
+to the webview either: the app asks the shell to set a key and is told only
+whether one is there.
+
+The setting that turns the assistant off is honoured by the shell as well
+as by the window, so a run cannot be started from outside the app when the
+document's contents are not meant to leave the machine.
 
 ## Running it
 
@@ -95,9 +135,9 @@ docker run --rm -p 32100:32100 yuemi-api
 ## Tests
 
 ```bash
-cd apps/api && pytest                    # 124 tests
-bun run test                             # 140 tests
-cd apps/desktop/src-tauri && cargo test  # 14 tests
+cd apps/api && pytest                    # 144 tests
+bun run test                             # 183 tests
+cd apps/desktop/src-tauri && cargo test  # 100 tests
 ```
 
 The visual tests compare the rendered pages of the reference document against
@@ -115,6 +155,12 @@ a build on Windows, macOS and Linux, and a visual check that renders the
 reference document on all three operating systems and compares the pages.
 See [.github/workflows/ci.yml](.github/workflows/ci.yml).
 
+The visual job asks for bash on purpose. A runner on Windows runs a step in
+PowerShell by default, and PowerShell does not read a trailing backslash as a
+line continuation, so a command spread over several lines that way never
+parses there. A test checks that rule for the whole workflow file, because
+nothing else in the suite looks at it.
+
 ## Status
 
 | Milestone | Contents | State |
@@ -122,5 +168,5 @@ See [.github/workflows/ci.yml](.github/workflows/ci.yml).
 | M1 | Project format, editor, render pipeline, preview, export | Done |
 | M2 | Templates, font bundling, render warnings, visual regression tests | Done |
 | M3 | AI tool layer, diff UI, snapshots | Done |
-| M4 | AI chat, streaming, render feedback loop | Planned |
+| M4 | AI chat, streaming, render feedback loop, providers, settings | Done |
 | M5 | Packaging, signing, auto-update | Planned |
