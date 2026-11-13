@@ -6,10 +6,9 @@ import base64
 import io
 from pathlib import Path
 
-import pytest
 from pypdf import PdfReader
 
-from app.models import Project, ProjectFile, ProjectFont, RenderWarning
+from app.models import Project, ProjectFile, ProjectFont
 from app.render import fonts as font_tools
 from app.render.pipeline import render_project
 
@@ -170,9 +169,7 @@ def test_a_wide_table_is_reported_as_overflowing():
         table { width: 100%; table-layout: fixed; }
         td { white-space: nowrap; }
         """,
-        markdown=(
-            "| A | B |\n| --- | --- |\n| " + "x" * 400 + " | y |\n"
-        ),
+        markdown=("| A | B |\n| --- | --- |\n| " + "x" * 400 + " | y |\n"),
     )
 
     codes = [warning.code for warning in result.warnings]

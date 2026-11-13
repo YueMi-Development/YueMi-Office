@@ -10,7 +10,6 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 
 from app.ai.diff import apply_changes
-from app.main import app
 
 CONTENT = (
     "# Getting Started\n"
@@ -131,10 +130,14 @@ class TestScriptedEdit:
             client,
             [
                 {"id": "1", "name": "list_sections", "arguments": {}},
-                {"id": "2", "name": "read_section", "arguments": {
-                    "path": "content/intro.md",
-                    "heading": "Installation",
-                }},
+                {
+                    "id": "2",
+                    "name": "read_section",
+                    "arguments": {
+                        "path": "content/intro.md",
+                        "heading": "Installation",
+                    },
+                },
             ],
         )
 
@@ -145,7 +148,9 @@ class TestScriptedEdit:
         ]
         assert "Run the installer." in session["calls"][1]["result"]["text"]
 
-    def test_a_change_is_not_applied_until_the_user_accepts_it(self, client: TestClient):
+    def test_a_change_is_not_applied_until_the_user_accepts_it(
+        self, client: TestClient
+    ):
         """The session proposes; it does not write.
 
         The service never touches the user's files, so the only thing a

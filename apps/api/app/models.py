@@ -6,15 +6,13 @@ Field names are kept identical to the TypeScript definitions in
 
 from __future__ import annotations
 
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
 PROJECT_SCHEMA_VERSION = 2
 
-PageSize = Literal[
-    "A0", "A1", "A2", "A3", "A4", "A5", "Letter", "Legal", "Tabloid"
-]
+PageSize = Literal["A0", "A1", "A2", "A3", "A4", "A5", "Letter", "Legal", "Tabloid"]
 Orientation = Literal["portrait", "landscape"]
 PdfVariant = Literal[
     "pdf/a-1b",
@@ -32,7 +30,7 @@ class PageConfig(BaseModel):
 
 
 class PdfConfig(BaseModel):
-    variant: Optional[PdfVariant] = None
+    variant: PdfVariant | None = None
 
 
 class Project(BaseModel):
@@ -70,7 +68,7 @@ class ProjectFont(BaseModel):
     path: str
     base64: str
     mimeType: str = "font/woff2"
-    family: Optional[str] = None
+    family: str | None = None
 
 
 class RenderRequest(BaseModel):
@@ -83,7 +81,7 @@ class RenderRequest(BaseModel):
 class RenderWarning(BaseModel):
     code: str
     message: str
-    path: Optional[str] = None
+    path: str | None = None
 
 
 class OutlineEntry(BaseModel):
@@ -130,8 +128,8 @@ class AiToolResult(BaseModel):
     name: str
     arguments: dict = Field(default_factory=dict)
     ok: bool = True
-    result: Optional[dict] = None
-    error: Optional[str] = None
+    result: dict | None = None
+    error: str | None = None
 
 
 class DiffChangeModel(BaseModel):
@@ -147,8 +145,8 @@ class DiffLineModel(BaseModel):
 
     kind: Literal["context", "added", "removed"]
     text: str
-    oldLine: Optional[int] = None
-    newLine: Optional[int] = None
+    oldLine: int | None = None
+    newLine: int | None = None
 
 
 class DiffHunkModel(BaseModel):

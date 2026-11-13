@@ -14,7 +14,6 @@ footers (PRD section 6).
 
 from __future__ import annotations
 
-import base64
 import html as html_module
 import io
 import logging
@@ -141,14 +140,12 @@ def _font_face_rules(fonts: list[ProjectFont]) -> tuple[list[str], list[str]]:
 
 def _asset_data_uris(assets: list[ProjectAsset]) -> dict[str, str]:
     """Map asset paths to data URIs so relative `url()` references resolve."""
-    return {
-        asset.path: _data_uri(asset.base64, asset.mimeType)
-        for asset in assets
-    }
+    return {asset.path: _data_uri(asset.base64, asset.mimeType) for asset in assets}
 
 
 def _rewrite_asset_urls(css: str, data_uris: dict[str, str]) -> str:
     """Rewrite `url(...)` references in CSS to point at inlined assets."""
+
     def replace(match: re.Match[str]) -> str:
         target = match.group(1).strip().strip("'\"")
         if target.startswith("data:"):
@@ -213,7 +210,8 @@ def _render_html_document(
     page_rule = _page_rule(project.page)
     title = html_module.escape(project.title)
 
-    return f"""<!DOCTYPE html>
+    return (
+        f"""<!DOCTYPE html>
 <html lang="{html_module.escape(project.language)}">
 <head>
 <meta charset="utf-8">
@@ -230,10 +228,14 @@ def _render_html_document(
 {body}
 </body>
 </html>
-""", font_families
+""",
+        font_families,
+    )
 
 
-def _extract_outline(pdf_bytes: bytes, headings: list[tuple[int, str, str]]) -> RenderOutline:
+def _extract_outline(
+    pdf_bytes: bytes, headings: list[tuple[int, str, str]]
+) -> RenderOutline:
     """Read bookmarks and page numbers back out of the rendered PDF.
 
     WeasyPrint creates bookmarks from the headings, so reading them back gives

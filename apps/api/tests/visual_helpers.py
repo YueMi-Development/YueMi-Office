@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import base64
 import hashlib
-import io
 import json
 import mimetypes
 from dataclasses import dataclass
@@ -83,9 +82,7 @@ def load_project(root: Path) -> RenderRequest:
             encoded = base64.b64encode(data).decode("ascii")
             mime = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
             if relative in set(project.fonts):
-                fonts.append(
-                    ProjectFont(path=relative, base64=encoded, mimeType=mime)
-                )
+                fonts.append(ProjectFont(path=relative, base64=encoded, mimeType=mime))
             else:
                 assets.append(
                     ProjectAsset(path=relative, base64=encoded, mimeType=mime)
@@ -123,7 +120,9 @@ def rasterize(pdf_bytes: bytes, zoom: float = 2.0) -> list[bytes]:
 def render_folder(root: Path) -> RenderedProject:
     """Render a project folder and rasterize its pages."""
     request = load_project(root)
-    result = render_project(request.project, request.files, request.assets, request.fonts)
+    result = render_project(
+        request.project, request.files, request.assets, request.fonts
+    )
 
     return RenderedProject(
         pdf=result.pdf,

@@ -6,24 +6,29 @@ import json
 import logging
 import platform
 
+# The native library directories have to be registered before WeasyPrint is
+# imported, so this import cannot be moved into the block of the project's own
+# imports below.
+# isort: off
 from app import native  # noqa: F401  (registers native library directories)
+# isort: on
 
 from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
 from weasyprint import __version__ as weasyprint_version
 
+from app.ai.session import ToolCall, run_session
+from app.ai.tools import TOOLS
 from app.models import (
     AiSessionRequest,
     AiSessionResponse,
     AiToolDescriptionModel,
     HealthResponse,
     RenderOutline,
-    RenderPagesResponse,
     RenderPageModel,
+    RenderPagesResponse,
     RenderRequest,
 )
-from app.ai.session import ToolCall, run_session
-from app.ai.tools import TOOLS
 from app.render.pages import encode, rasterize
 from app.render.pipeline import RenderError, render_project
 
@@ -40,7 +45,9 @@ def _header_value(payload: object) -> str:
     """Encode a payload for a header, or return an empty string if too big."""
     encoded = json.dumps(payload, separators=(",", ":"))
     if len(encoded.encode("utf-8")) > MAX_HEADER_BYTES:
-        logger.warning("payload too large for a header; the client must fetch it separately")
+        logger.warning(
+            "payload too large for a header; the client must fetch it separately"
+        )
         return ""
     return encoded
 

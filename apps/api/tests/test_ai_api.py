@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
-from app.main import app
-
 
 def make_request(calls: list[dict]) -> dict:
     """A session request over a small project."""

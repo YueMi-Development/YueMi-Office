@@ -125,7 +125,6 @@ def _overflowing_boxes(page, geometry: PageGeometry) -> list:
 
         left = box.position_x
         right = box.position_x + box.width
-        top = box.position_y
         bottom = box.position_y + box.height
 
         if (
@@ -186,7 +185,9 @@ def detect_overflow(document) -> list[RenderWarning]:
     return warnings
 
 
-def detect_orphaned_headings(document, heading_paths: dict[str, str]) -> list[RenderWarning]:
+def detect_orphaned_headings(
+    document, heading_paths: dict[str, str]
+) -> list[RenderWarning]:
     """Report headings that sit alone at the bottom of a page.
 
     A heading with its text overleaf reads badly, so the layout engine's
@@ -240,7 +241,9 @@ def detect_orphaned_headings(document, heading_paths: dict[str, str]) -> list[Re
     return warnings
 
 
-def analyze_layout(document, heading_paths: dict[str, str] | None = None) -> list[RenderWarning]:
+def analyze_layout(
+    document, heading_paths: dict[str, str] | None = None
+) -> list[RenderWarning]:
     """Run every layout check over a rendered document."""
     warnings: list[RenderWarning] = []
     warnings.extend(detect_overflow(document))
