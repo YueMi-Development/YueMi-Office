@@ -12,6 +12,7 @@
 
 use std::collections::BTreeMap;
 use std::fs;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
@@ -181,14 +182,105 @@ pub fn read_config_from(directory: &Path) -> Result<AppConfig, String> {
         .map_err(|error| format!("{} is not valid: {error}", path.display()))
 }
 
+/// The file the configuration is written to first.
+///
+/// The configuration is written to this name and then renamed over the real
+/// one, so a write that is interrupted leaves the old file alone rather than
+/// a half-written one.
+const CONFIG_TEMP_FILE: &str = "config.json.new";
+
+/// The file the keys are written to first.
+const CREDENTIALS_TEMP_FILE: &str = "credentials.json.new";
+
+/// Writes a file so that it is either the old one or the new one.
+///
+/// The contents go into a temporary file first, and that file is then renamed
+/// over the real one. A rename within a folder is atomic, so a reader sees
+/// one complete file or the other, never a half-written one. Writing in
+/// place would not have that property: a write that is interrupted — the
+/// machine is shut down, the disk fills up — leaves a truncated file, and a
+/// configuration that cannot be parsed is an error the user has to fix by
+/// hand.
+///
+/// The temporary file is removed when the rename fails, so a folder that
+/// cannot be written to does not fill up with half-written files.
+///
+/// A `secure` file is created readable only by its owner from the start,
+/// rather than having that permission set afterwards: the moment between
+/// writing the file and restricting it is a moment when the secret in it can
+/// be read by anyone else on the machine.
+fn write_file_atomically(
+    directory: &Path,
+    file_name: &str,
+    temp_name: &str,
+    contents: &str,
+    secure: bool,
+) -> Result<PathBuf, String> {
+    ensure_directory(directory)?;
+
+    let path = directory.join(file_name);
+    let temp_path = directory.join(temp_name);
+
+    // The temporary file is removed first, so that it is always a new file.
+    // A file that is opened for writing keeps the permissions it already
+    // had, and a leftover from an earlier run would carry the wrong ones.
+    let _ = fs::remove_file(&temp_path);
+
+    let mut options = fs::OpenOptions::new();
+    options.write(true).create(true).truncate(true);
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        if secure {
+            options.mode(0o600);
+        }
+    }
+
+    // The permission is not set on Windows, where the file inherits the
+    // permissions of the user's own folder.
+    #[cfg(not(unix))]
+    let _ = secure;
+
+    let mut file = options
+        .open(&temp_path)
+        .map_err(|error| format!("Cannot write {}: {error}", temp_path.display()))?;
+
+    if let Err(error) = file.write_all(contents.as_bytes()) {
+        let _ = fs::remove_file(&temp_path);
+        return Err(format!("Cannot write {}: {error}", temp_path.display()));
+    }
+
+    // The contents are on the disk before the rename, so a crash leaves the
+    // old file rather than a renamed but empty one.
+    if let Err(error) = file.sync_all() {
+        let _ = fs::remove_file(&temp_path);
+        return Err(format!("Cannot write {}: {error}", temp_path.display()));
+    }
+    drop(file);
+
+    if let Err(error) = fs::rename(&temp_path, &path) {
+        let _ = fs::remove_file(&temp_path);
+        return Err(format!("Cannot write {}: {error}", path.display()));
+    }
+
+    Ok(path)
+}
+
 /// Writes the configuration file to a folder.
 pub fn write_config_to(directory: &Path, config: &AppConfig) -> Result<(), String> {
-    ensure_directory(directory)?;
-    let path = directory.join(CONFIG_FILE);
     let serialized = serde_json::to_string_pretty(config)
         .map_err(|error| format!("Cannot serialize the configuration: {error}"))?;
-    fs::write(&path, format!("{serialized}\n"))
-        .map_err(|error| format!("Cannot write {}: {error}", path.display()))
+
+    write_file_atomically(
+        directory,
+        CONFIG_FILE,
+        CONFIG_TEMP_FILE,
+        &format!("{serialized}\n"),
+        false,
+    )?;
+
+    Ok(())
 }
 
 /// Reads the API keys from a folder, keyed by provider.
@@ -210,32 +302,18 @@ pub fn write_credentials_to(
     directory: &Path,
     credentials: &BTreeMap<String, String>,
 ) -> Result<(), String> {
-    ensure_directory(directory)?;
-    let path = directory.join(CREDENTIALS_FILE);
     let serialized = serde_json::to_string_pretty(credentials)
         .map_err(|error| format!("Cannot serialize the keys: {error}"))?;
-    fs::write(&path, format!("{serialized}\n"))
-        .map_err(|error| format!("Cannot write {}: {error}", path.display()))?;
 
-    restrict_permissions(&path);
+    write_file_atomically(
+        directory,
+        CREDENTIALS_FILE,
+        CREDENTIALS_TEMP_FILE,
+        &format!("{serialized}\n"),
+        true,
+    )?;
+
     Ok(())
-}
-
-/// Makes a file readable only by its owner.
-///
-/// The keys are a secret, and a file that anyone on the machine can read is
-/// not much of a secret. The permission is not set on Windows, where the
-/// file inherits the permissions of the user's profile folder.
-fn restrict_permissions(path: &Path) {
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let _ = fs::set_permissions(path, fs::Permissions::from_mode(0o600));
-    }
-    #[cfg(not(unix))]
-    {
-        let _ = path;
-    }
 }
 
 /// Sets or clears the key of one provider.
@@ -357,9 +435,13 @@ pub fn command_load_app_config() -> Result<AppConfigView, String> {
 /// The providers come with their keys flagged rather than with the keys
 /// themselves, so a save from the webview cannot write a key into the
 /// configuration file by accident.
+///
+/// The configuration as it now stands is returned, so the webview does not
+/// have to read it back in a second call to find out what was saved.
 #[tauri::command(rename = "save_app_config")]
-pub fn command_save_app_config(config: AppConfig) -> Result<(), String> {
-    write_config(&config)
+pub fn command_save_app_config(config: AppConfig) -> Result<AppConfigView, String> {
+    write_config(&config)?;
+    config_view_from(&config_directory()?)
 }
 
 /// Sets or clears the key of one provider.

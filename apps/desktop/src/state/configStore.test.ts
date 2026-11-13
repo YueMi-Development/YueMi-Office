@@ -1,7 +1,13 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { defaultAppConfig, makeProvider } from '../lib/appConfig';
 import { useConfigStore } from './configStore';
+
+const invoke = vi.fn();
+
+vi.mock('@tauri-apps/api/core', () => ({
+  invoke: (...args: unknown[]) => invoke(...args),
+}));
 
 /**
  * The providers the assistant can talk to.
@@ -140,5 +146,102 @@ describe('the configuration store', () => {
     });
 
     expect(useConfigStore.getState().activeProvider()).toBeNull();
+  });
+});
+
+describe('the configuration store in the desktop app', () => {
+  beforeEach(() => {
+    (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__ = {};
+    invoke.mockReset();
+    invoke.mockImplementation(async (command: string) => {
+      if (command === 'load_app_config') {
+        return {
+          providers: [],
+          activeProviderId: null,
+          activeModel: null,
+          aiEnabled: true,
+          directory: '/home/user/.yuemi-office',
+        };
+      }
+      if (command === 'save_app_config') {
+        return {
+          providers: [],
+          activeProviderId: 'anthropic',
+          activeModel: null,
+          aiEnabled: true,
+          directory: '/home/user/.yuemi-office',
+        };
+      }
+      if (command === 'set_provider_key') {
+        return null;
+      }
+      throw new Error(`unexpected command: ${command}`);
+    });
+
+    useConfigStore.setState({ config: null, loaded: false, error: null });
+  });
+
+  it('says whether the settings were saved', async () => {
+    const saved = await useConfigStore.getState().save(defaultAppConfig());
+
+    expect(saved).toBe(true);
+    expect(useConfigStore.getState().error).toBeNull();
+  });
+
+  it('says why the settings could not be saved', async () => {
+    invoke.mockImplementation(async (command: string) => {
+      if (command === 'save_app_config') {
+        throw new Error('The disk is full.');
+      }
+      throw new Error(`unexpected command: ${command}`);
+    });
+
+    const saved = await useConfigStore.getState().save(defaultAppConfig());
+
+    expect(saved).toBe(false);
+    expect(useConfigStore.getState().error).toBe('The disk is full.');
+  });
+
+  it('says whether the key was saved', async () => {
+    const saved = await useConfigStore.getState().setKey('anthropic', 'sk-secret');
+
+    expect(saved).toBe(true);
+    expect(useConfigStore.getState().error).toBeNull();
+  });
+
+  it('says why the key could not be saved', async () => {
+    invoke.mockImplementation(async (command: string) => {
+      if (command === 'set_provider_key') {
+        throw new Error('The key file is locked.');
+      }
+      throw new Error(`unexpected command: ${command}`);
+    });
+
+    const saved = await useConfigStore.getState().setKey('anthropic', 'sk-secret');
+
+    expect(saved).toBe(false);
+    expect(useConfigStore.getState().error).toBe('The key file is locked.');
+  });
+
+  it('marks the key as saved without reading the whole configuration again', async () => {
+    useConfigStore.setState({
+      config: {
+        providers: [
+          { ...makeProvider({ id: 'a', name: 'A' }), hasKey: false },
+          { ...makeProvider({ id: 'b', name: 'B' }), hasKey: false },
+        ],
+        activeProviderId: null,
+        activeModel: null,
+        aiEnabled: true,
+        directory: '',
+      },
+    });
+
+    await useConfigStore.getState().setKey('a', 'sk-secret');
+
+    const providers = useConfigStore.getState().config?.providers ?? [];
+    expect(providers[0].hasKey).toBe(true);
+    expect(providers[1].hasKey).toBe(false);
+    expect(invoke.mock.calls.map((call) => call[0])).toEqual(['set_provider_key']);
   });
 });

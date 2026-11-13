@@ -80,6 +80,17 @@ into an issue, and a key in it would be a leak. The key never travels back
 to the webview either: the app asks the shell to set a key and is told only
 whether one is there.
 
+Both files are written by writing a temporary file next to them and moving
+it into place, so an interrupted write leaves the old file whole instead of
+a half-written one that cannot be read.
+
+The settings dialog has one **Save** button, and it saves everything on it:
+the address of the render service, the providers, the provider that is
+active, the model, and whether the assistant is allowed to run. A key has its
+own button next to the field it is pasted into, and saving a key does not
+touch the rest of the form. Removing a provider and saving clears the key
+that belonged to it.
+
 The setting that turns the assistant off is honoured by the shell as well
 as by the window, so a run cannot be started from outside the app when the
 document's contents are not meant to leave the machine.

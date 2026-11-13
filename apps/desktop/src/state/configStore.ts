@@ -21,10 +21,21 @@ export interface ConfigState {
 
   /** Reads the configuration. */
   load: () => Promise<void>;
-  /** Writes the configuration. */
-  save: (config: AppConfig) => Promise<void>;
-  /** Sets the key of a provider. */
-  setKey: (providerId: string, key: string) => Promise<void>;
+  /**
+   * Writes the configuration.
+   *
+   * It answers whether the write went through, so the caller can tell the
+   * user what happened instead of leaving them wondering.
+   */
+  save: (config: AppConfig) => Promise<boolean>;
+  /**
+   * Sets the key of a provider.
+   *
+   * Only the flag of that one provider is updated: reading the whole
+   * configuration back would replace it and undo whatever the user was
+   * editing at the same time.
+   */
+  setKey: (providerId: string, key: string) => Promise<boolean>;
   /** The provider that is active. */
   activeProvider: () => ProviderConfig | null;
 }
@@ -50,21 +61,37 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
     try {
       const saved = await saveAppConfig(config);
       set({ config: saved, error: null });
+      return true;
     } catch (error) {
       set({
         error: error instanceof Error ? error.message : 'The settings could not be saved.',
       });
+      return false;
     }
   },
 
   setKey: async (providerId, key) => {
     try {
       await setProviderKey(providerId, key);
-      await get().load();
+      set((state) => ({
+        config: state.config
+          ? {
+              ...state.config,
+              providers: state.config.providers.map((provider) =>
+                provider.id === providerId
+                  ? { ...provider, hasKey: key.trim().length > 0 }
+                  : provider,
+              ),
+            }
+          : state.config,
+        error: null,
+      }));
+      return true;
     } catch (error) {
       set({
         error: error instanceof Error ? error.message : 'The key could not be saved.',
       });
+      return false;
     }
   },
 

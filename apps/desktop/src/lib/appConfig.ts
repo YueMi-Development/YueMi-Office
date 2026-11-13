@@ -110,6 +110,9 @@ export async function loadAppConfig(): Promise<AppConfigView> {
 
 /**
  * Writes the configuration.
+ *
+ * The shell answers with the configuration as it now stands, so the app does
+ * not have to read it back in a second call to find out what was saved.
  */
 export async function saveAppConfig(config: AppConfig): Promise<AppConfigView> {
   if (!isTauri()) {
@@ -117,8 +120,7 @@ export async function saveAppConfig(config: AppConfig): Promise<AppConfigView> {
     return viewOf(config, 'browser storage');
   }
 
-  await invoke('save_app_config', { config });
-  return invoke<AppConfigView>('load_app_config');
+  return invoke<AppConfigView>('save_app_config', { config });
 }
 
 /**

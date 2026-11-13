@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { AppConfig, ProviderConfig, ProviderProtocol } from '@yuemi/protocol';
 
 import { checkHealth } from '../../lib/api';
@@ -36,6 +36,7 @@ export function SettingsDialog({ onClose }: SettingsDialogProps) {
   const setServiceUrl = useSettingsStore((state) => state.setServiceUrl);
 
   const config = useConfigStore((state) => state.config);
+  const configError = useConfigStore((state) => state.error);
   const loadConfig = useConfigStore((state) => state.load);
   const saveConfig = useConfigStore((state) => state.save);
   const setKey = useConfigStore((state) => state.setKey);
@@ -52,6 +53,16 @@ export function SettingsDialog({ onClose }: SettingsDialogProps) {
   const [keys, setKeys] = useState<Record<string, string>>({});
   const [testing, setTesting] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  /**
+   * The drafts are filled once, when the configuration first arrives.
+   *
+   * Filling them again whenever the configuration changes would throw away
+   * whatever the user is editing: the configuration is replaced every time a
+   * key is written, so an edit would vanish as soon as a key was saved.
+   */
+  const seeded = useRef(false);
 
   useEffect(() => {
     setDraft(serviceUrl);
@@ -62,25 +73,66 @@ export function SettingsDialog({ onClose }: SettingsDialogProps) {
   }, [loadConfig]);
 
   useEffect(() => {
-    if (!config) {
+    if (!config || seeded.current) {
       return;
     }
 
+    seeded.current = true;
     setProviders(config.providers.map(({ hasKey: _hasKey, ...provider }) => provider));
     setActiveProviderId(config.activeProviderId);
     setActiveModel(config.activeModel ?? '');
     setAiEnabled(config.aiEnabled);
   }, [config]);
 
-  const handleSave = () => {
+  /**
+   * Writes the settings: the address of the service and the providers.
+   *
+   * The key of a provider that was removed is cleared as part of the same
+   * write, so a key does not stay behind for a provider that no longer
+   * exists. The comparison is made against the configuration as it was read,
+   * so closing the dialog without saving leaves the key where it is.
+   */
+  const handleSave = async () => {
     const issue = validateServiceUrl(draft);
     if (issue) {
       setProblem(issue);
       return;
     }
     setProblem(null);
-    setServiceUrl(draft);
+    setSaving(true);
     setStatus(null);
+
+    try {
+      setServiceUrl(draft);
+
+      // The keys of providers that are gone are cleared as part of the same
+      // write. The list is taken before the write, because the write
+      // replaces the configuration the comparison is made against.
+      const kept = new Set(providers.map((provider) => provider.id));
+      const removed = (config?.providers ?? [])
+        .filter((provider) => !kept.has(provider.id))
+        .map((provider) => provider.id);
+
+      const saved: AppConfig = {
+        providers,
+        activeProviderId,
+        activeModel: activeModel.trim() === '' ? null : activeModel,
+        aiEnabled,
+      };
+      const written = await saveConfig(saved);
+      if (!written) {
+        setStatus('The settings could not be saved.');
+        return;
+      }
+
+      for (const id of removed) {
+        await setKey(id, '');
+      }
+
+      setStatus('The settings were saved.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleCheck = async () => {
@@ -110,20 +162,13 @@ export function SettingsDialog({ onClose }: SettingsDialogProps) {
     }
   };
 
-  const handleSaveProviders = async () => {
-    const saved: AppConfig = {
-      providers,
-      activeProviderId,
-      activeModel: activeModel.trim() === '' ? null : activeModel,
-      aiEnabled,
-    };
-    await saveConfig(saved);
-  };
-
   const handleSaveKey = async (providerId: string) => {
     const key = keys[providerId] ?? '';
-    await setKey(providerId, key);
-    setKeys((state) => ({ ...state, [providerId]: '' }));
+    const written = await setKey(providerId, key);
+    if (written) {
+      setKeys((state) => ({ ...state, [providerId]: '' }));
+      setStatus('The key was saved.');
+    }
   };
 
   const handleTest = async (provider: ProviderConfig) => {
@@ -193,6 +238,11 @@ export function SettingsDialog({ onClose }: SettingsDialogProps) {
           </p>
         )}
         {status && <p className="settings-status">{status}</p>}
+        {configError && (
+          <p className="settings-problem" role="alert">
+            {configError}
+          </p>
+        )}
 
         <section className="settings-section">
           <h3 className="settings-subtitle">AI assistant</h3>
@@ -376,7 +426,7 @@ export function SettingsDialog({ onClose }: SettingsDialogProps) {
                       onClick={() => handleTest(provider)}
                       disabled={testing === provider.id}
                     >
-                      {testing === provider.id ? 'Testing…' : 'Test connection'}
+                      {testing === provider.id ? 'Testing…' : 'Test provider'}
                     </button>
                     <button type="button" onClick={() => handleRemove(provider.id)}>
                       Remove
@@ -393,9 +443,6 @@ export function SettingsDialog({ onClose }: SettingsDialogProps) {
             <button type="button" onClick={handleAdd}>
               Add provider
             </button>
-            <button type="button" onClick={handleSaveProviders}>
-              Save providers
-            </button>
           </div>
 
           {config && (
@@ -409,10 +456,10 @@ export function SettingsDialog({ onClose }: SettingsDialogProps) {
 
         <div className="template-picker-actions">
           <button type="button" onClick={handleCheck} disabled={checking}>
-            {checking ? 'Checking…' : 'Test connection'}
+            {checking ? 'Checking…' : 'Test service'}
           </button>
-          <button type="button" onClick={handleSave}>
-            Save
+          <button type="button" onClick={() => void handleSave()} disabled={saving}>
+            {saving ? 'Saving…' : 'Save'}
           </button>
           <button type="button" onClick={onClose}>
             Close
