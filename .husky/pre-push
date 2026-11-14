@@ -8,6 +8,10 @@
 # The hook runs the scripts under .github/scripts, the same ones the CI
 # calls, so there is one set of lint rules and not two.
 #
+# Only the linters whose section changed are run. A push that touched prose
+# would otherwise pay for a Rust compile and a Docker image build, and the
+# wait teaches people to push past the hook.
+#
 # The file has no shebang of its own. Husky runs it with `sh -e`, and a
 # shebang would only say what the runner already says.
 
@@ -18,22 +22,61 @@ cd "$root"
 
 echo "== Linting before the push"
 
-# The scripts are POSIX shell, and they are called with `sh`. The hook
-# runner is the same on every platform, so a script that needed a shell
-# that is not always there would fail on the machine of the person who
-# pushes rather than on a runner.
-sh .github/scripts/lint-frontend.sh
-
-sh .github/scripts/lint-rust.sh
-
-# The backend lint runs inside the render image, so it needs a Docker
-# daemon. A machine without one still pushes: the CI runs the backend
-# lint on every push anyway, so nothing is lost, only moved to the
-# runner. A daemon that is not running is reported rather than hidden,
-# because a silent skip reads like a lint that passed.
-if docker info >/dev/null 2>&1; then
-  sh .github/scripts/lint-backend.sh
+# The selection is asked for in one call, because the hook has to know what
+# to run before it runs anything.
+if selection="$(bun run scripts/lint-changed.ts)"; then
+  :
 else
-  echo "== The render service was not linted: no Docker daemon is running."
-  echo "== The CI lints it on every push."
+  # A selection that cannot be made is a selection of everything: a hook
+  # that cannot tell what changed must not decide that nothing changed.
+  selection="all"
 fi
+
+if [ -z "$selection" ]; then
+  echo "== Nothing in this push reaches a linter."
+  exit 0
+fi
+
+if [ "$selection" = "all" ]; then
+  echo "== The changes could not be measured, so every linter runs."
+  selection="frontend rust backend"
+fi
+
+run_linter() {
+  name="$1"
+
+  echo "== $name"
+
+  if sh ".github/scripts/lint-$name.sh"; then
+    return 0
+  fi
+
+  echo "== $name failed. The push was refused."
+  exit 1
+}
+
+for linter in $selection; do
+  # The lint of the render service runs inside the render image, so it
+  # needs a Docker daemon. A machine without one still pushes: the CI runs
+  # the backend lint on every push anyway, so nothing is lost, only moved
+  # to the runner. A daemon that is not running is reported rather than
+  # hidden, because a silent skip reads like a lint that passed.
+  #
+  # The daemon is only asked about when the service is among the linters
+  # that were selected. A push that touches no Python does not wait for
+  # Docker to answer.
+  if [ "$linter" = "backend" ]; then
+    if docker info >/dev/null 2>&1; then
+      run_linter "$linter"
+    else
+      echo "== The render service was not linted: no Docker daemon is running."
+      echo "== The CI lints it on every push."
+    fi
+
+    continue
+  fi
+
+  run_linter "$linter"
+done
+
+echo "== The push may go."

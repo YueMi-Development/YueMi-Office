@@ -14,6 +14,7 @@
     "typecheck": "bun run typecheck:scripts && bun run --cwd packages/protocol typecheck && bun run --cwd apps/desktop typecheck",
     "typecheck:scripts": "tsc -p tsconfig.json --noEmit",
     "lint": "bun run lint:eslint && bun run lint:prettier",
+    "lint:changed": "bun run scripts/lint-changed.ts",
     "lint:eslint": "eslint .",
     "lint:prettier": "prettier --check .",
     "format": "prettier --write .",
