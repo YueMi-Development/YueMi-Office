@@ -18,7 +18,7 @@
     },
     "apps/desktop": {
       "name": "@yuemi/desktop",
-      "version": "0.1.0",
+      "version": "0.2.0-alpha",
       "dependencies": {
         "@codemirror/commands": "^6.7.0",
         "@codemirror/language": "^6.10.0",
@@ -50,7 +50,7 @@
     },
     "packages/protocol": {
       "name": "@yuemi/protocol",
-      "version": "0.1.0",
+      "version": "0.2.0-alpha",
       "devDependencies": {
         "typescript": "^5.6.0",
         "vitest": "^2.1.0",

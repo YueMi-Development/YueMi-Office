@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "yuemi",
-  "version": "0.1.0",
+  "version": "0.2.0-alpha",
   "identifier": "app.yuemi.office",
   "mainBinaryName": "yuemi",
   "build": {
@@ -38,11 +38,11 @@
     ],
     "windows": {
       "wix": {
-        "version": "0.1.0.0"
+        "version": "0.2.0.0"
       }
     },
     "macOS": {
-      "bundleVersion": "0.1.0"
+      "bundleVersion": "0.2.0"
     }
   }
 }

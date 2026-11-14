@@ -1,6 +1,6 @@
 [package]
 name = "app"
-version = "0.1.0"
+version = "0.2.0-alpha"
 description = "yuemi, an AI-assisted Typst document studio"
 authors = ["yuemi"]
 license = "FSL-1.1-ALv2"

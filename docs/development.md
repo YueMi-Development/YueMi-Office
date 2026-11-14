@@ -151,7 +151,7 @@ rather than after one.
 A third command answers what the Linux packages would carry:
 
 ```bash
-bun run package-version           # 0.1.0
+bun run package-version           # 0.2.0~alpha
 bun run package-version 1.0.0-beta # 1.0.0~beta
 ```
 

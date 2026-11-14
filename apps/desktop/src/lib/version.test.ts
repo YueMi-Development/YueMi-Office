@@ -49,6 +49,25 @@ function treeFiles(): VersionFiles {
   };
 }
 
+/**
+ * The version the tree is at.
+ *
+ * The root package is what the release script writes the version into
+ * first, so it is what the other files are read against. The number is
+ * read out of the tree rather than written down here, because a tree is
+ * released more than once and a number written down in a test is a
+ * number that has to be changed by hand every time.
+ */
+function treeVersion(): string {
+  const parsed = JSON.parse(rootPackage) as { version?: string };
+
+  if (typeof parsed.version !== 'string') {
+    throw new Error('The root package does not carry a version.');
+  }
+
+  return parsed.version;
+}
+
 describe('the version a tag names', () => {
   it('is the tag without the v', () => {
     expect(versionFromTag('v1.0.0')).toBe('1.0.0');
@@ -303,7 +322,7 @@ describe('the version in the tree', () => {
     const version = versionInFiles(treeFiles());
 
     expect(version).not.toBeNull();
-    expect(version).toBe('0.1.0');
+    expect(version).toBe(treeVersion());
   });
 
   it('is the version the lockfile records', () => {
@@ -335,16 +354,17 @@ describe('the version in the tree', () => {
     const versions = versionsInFiles(treeFiles());
 
     for (const version of Object.values(versions)) {
-      expect(version).toBe('0.1.0');
+      expect(version).toBe(treeVersion());
     }
   });
 
   it('is read out of each kind of file', () => {
     const files = treeFiles();
+    const version = treeVersion();
 
-    expect(versionInFile('rootPackage', files.rootPackage)).toBe('0.1.0');
-    expect(versionInFile('cargoToml', files.cargoToml)).toBe('0.1.0');
-    expect(versionInFile('cargoLock', files.cargoLock)).toBe('0.1.0');
+    expect(versionInFile('rootPackage', files.rootPackage)).toBe(version);
+    expect(versionInFile('cargoToml', files.cargoToml)).toBe(version);
+    expect(versionInFile('cargoLock', files.cargoLock)).toBe(version);
   });
 
   it('is null when a file has no version in it', () => {
