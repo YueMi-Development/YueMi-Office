@@ -73,12 +73,6 @@
       "skillPath": "skills/requesting-code-review/SKILL.md",
       "computedHash": "32bcc25e8c3315d0150f646ee0067c9d4bfbc7719c34012db9c202e17cce8a14"
     },
-    "rust-async-patterns": {
-      "source": "wshobson/agents",
-      "sourceType": "github",
-      "skillPath": "plugins/systems-programming/skills/rust-async-patterns/SKILL.md",
-      "computedHash": "286b73077a434af5844dd480e5b98026bea5b31fcfafce3c04405a7392331601"
-    },
     "rust-best-practices": {
       "source": "apollographql/skills",
       "sourceType": "github",
@@ -103,12 +97,6 @@
       "skillPath": "skills/rust-engineer/SKILL.md",
       "computedHash": "41b14a9b58417e000511e6fb3e7eb3727c9a051627788a0ad67963c7244ba248"
     },
-    "rust-testing": {
-      "source": "affaan-m/everything-claude-code",
-      "sourceType": "github",
-      "skillPath": "skills/rust-testing/SKILL.md",
-      "computedHash": "4a16853504a8d9ee1af3abb29e4db9b506ddc46f5ef6bafff45193a1a1a1e520"
-    },
     "tauri": {
       "source": "full-stack-skills/tauri-skills",
       "sourceType": "github",
@@ -127,23 +115,11 @@
       "skillPath": "skills/tauri-build/SKILL.md",
       "computedHash": "7625f3f4370d6c21c919c3e0a7e261d76e558b511a7cc079d205dcbdb7483b32"
     },
-    "tauri-development": {
-      "source": "Mindrally/skills",
-      "sourceType": "github",
-      "skillPath": "tauri-development/SKILL.md",
-      "computedHash": "517703486a5db6423c3b2b4451c65321d3fa87e744e753f312d3e6989ce15ff9"
-    },
     "tauri-security": {
       "source": "full-stack-skills/tauri-skills",
       "sourceType": "github",
       "skillPath": "skills/tauri-security/SKILL.md",
       "computedHash": "f283f4baf9447b7d56ea73176a1a8cad36d688ea0ed5130b47a6837c2719cf9c"
-    },
-    "typescript-advanced-types": {
-      "source": "wshobson/agents",
-      "sourceType": "github",
-      "skillPath": "plugins/javascript-typescript/skills/typescript-advanced-types/SKILL.md",
-      "computedHash": "34c5b3863fde1fc85981ac583ecaf0140471b374d0b7002ac5bc0bea2cf38b24"
     },
     "typescript-expert": {
       "source": "sickn33/agentic-awesome-skills",
