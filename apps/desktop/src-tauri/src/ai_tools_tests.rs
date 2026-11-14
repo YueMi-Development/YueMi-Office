@@ -290,6 +290,118 @@ fn the_change_is_not_applied_to_the_file() {
 }
 
 #[test]
+fn refuses_an_edit_that_stops_in_the_middle_of_the_file() {
+    let mut context = make_context(None);
+
+    // The reply stopped part way through, so the file is cut off.
+    let (ok, _result, error) = run_tool(
+        &mut context,
+        "propose_edit",
+        Some(&json!({
+            "path": "content/intro.typ",
+            "newText": "= Getting Started\n\nThe opening paragraph.\n\n== Installation\n\n#let broken = {\n",
+        })),
+    );
+
+    assert!(!ok);
+    assert!(context.edits.is_empty());
+    assert!(error.unwrap().contains("not valid Typst"));
+}
+
+#[test]
+fn refuses_a_new_file_that_is_not_valid_typst() {
+    let mut context = make_context(None);
+
+    let (ok, _result, error) = run_tool(
+        &mut context,
+        "propose_edit",
+        Some(&json!({ "path": "content/new.typ", "newText": "= New\n\n#let broken = {\n" })),
+    );
+
+    assert!(!ok);
+    assert!(context.edits.is_empty());
+    assert!(error.unwrap().contains("not valid Typst"));
+}
+
+#[test]
+fn refuses_a_file_that_does_not_compile() {
+    let mut context = make_context(None);
+
+    // The file parses, but it names a variable that is not there.
+    let (ok, _result, error) = run_tool(
+        &mut context,
+        "propose_edit",
+        Some(&json!({
+            "path": "content/intro.typ",
+            "newText": "= Getting Started\n\n#missing_variable\n",
+        })),
+    );
+
+    assert!(!ok);
+    assert!(context.edits.is_empty());
+    assert!(error.unwrap().contains("not valid Typst"));
+}
+
+#[test]
+fn accepts_a_change_that_compiles() {
+    let mut context = make_context(None);
+
+    let (ok, _result, error) = run_tool(
+        &mut context,
+        "propose_edit",
+        Some(&json!({
+            "path": "content/intro.typ",
+            "newText": "= Getting Started\n\nThe opening paragraph.\n\n#let accent = rgb(\"#3355ff\")\n",
+        })),
+    );
+
+    assert!(ok, "{error:?}");
+    assert_eq!(context.edits.len(), 1);
+}
+
+#[test]
+fn a_file_that_is_not_typst_is_not_held_to_typst() {
+    let mut context = make_context(None);
+
+    let (ok, _result, error) = run_tool(
+        &mut context,
+        "propose_edit",
+        Some(&json!({ "path": "notes.txt", "newText": "#let broken = {\n" })),
+    );
+
+    assert!(ok, "{error:?}");
+    assert_eq!(context.edits.len(), 1);
+}
+
+#[test]
+fn a_file_that_is_already_broken_can_be_repaired() {
+    let broken = ProjectFile {
+        path: "content/intro.typ".to_string(),
+        text: "= Getting Started\n\n#let broken = {\n".to_string(),
+    };
+
+    let mut context = make_context(Some(vec![
+        broken,
+        ProjectFile {
+            path: "theme.typ".to_string(),
+            text: "#let theme(body) = {\n  set text(font: \"Inter\")\n  body\n}\n".to_string(),
+        },
+    ]));
+
+    let (ok, _result, error) = run_tool(
+        &mut context,
+        "propose_edit",
+        Some(&json!({
+            "path": "content/intro.typ",
+            "newText": "= Getting Started\n\nThe opening paragraph.\n",
+        })),
+    );
+
+    assert!(ok, "{error:?}");
+    assert_eq!(context.edits.len(), 1);
+}
+
+#[test]
 fn changes_the_body_of_an_existing_style() {
     let mut context = make_context(None);
 
@@ -320,14 +432,17 @@ fn adds_a_style_that_is_not_there_yet() {
         &mut context,
         "propose_style",
         Some(&json!({
-            "selector": "heading",
-            "declarations": "numbered: true",
+            "selector": "par",
+            "declarations": "justify: true",
         })),
     );
 
     assert!(ok, "{error:?}");
     let new_text = &context.edits[0].new_text;
-    assert!(new_text.contains("#set heading(numbered: true)"));
+
+    // The rule goes inside the theme function, where the code is already
+    // code, so it is written without the `#` that marks code in the file.
+    assert!(new_text.contains("set par(justify: true)"), "{new_text}");
 }
 
 #[test]
@@ -364,6 +479,95 @@ fn changes_an_existing_binding() {
     assert!(ok, "{error:?}");
     let new_text = &context.edits[0].new_text;
     assert!(new_text.contains("rgb(\"#ff0000\")"));
+}
+
+#[test]
+fn a_show_rule_that_uses_it_becomes_a_recipe() {
+    let mut context = make_context(None);
+
+    let (ok, _result, error) = run_tool(
+        &mut context,
+        "propose_style",
+        Some(&json!({
+            "selector": "show list",
+            "declarations": "block(above: 0pt, below: 3mm, it)",
+        })),
+    );
+
+    assert!(ok, "{error:?}");
+    let new_text = &context.edits[0].new_text;
+    assert!(
+        new_text.contains("show list: it => block(above: 0pt, below: 3mm, it)"),
+        "{new_text}"
+    );
+}
+
+#[test]
+fn a_show_rule_that_is_already_a_recipe_is_left_alone() {
+    let mut context = make_context(None);
+
+    let (ok, _result, error) = run_tool(
+        &mut context,
+        "propose_style",
+        Some(&json!({
+            "selector": "show list",
+            "declarations": "it => block(above: 0pt, below: 3mm, it)",
+        })),
+    );
+
+    assert!(ok, "{error:?}");
+    let new_text = &context.edits[0].new_text;
+    assert!(
+        new_text.contains("show list: it => block(above: 0pt, below: 3mm, it)"),
+        "{new_text}"
+    );
+    assert!(!new_text.contains("it => it =>"), "{new_text}");
+}
+
+#[test]
+fn a_rule_that_is_added_goes_inside_the_theme_function() {
+    let mut context = make_context(None);
+
+    let (ok, _result, error) = run_tool(
+        &mut context,
+        "propose_style",
+        Some(&json!({
+            "selector": "set heading",
+            "declarations": "numbering: \"1.1\"",
+        })),
+    );
+
+    assert!(ok, "{error:?}");
+    let new_text = &context.edits[0].new_text;
+
+    // A rule only reaches the document when it is inside the theme
+    // function and in front of the body it wraps.
+    let rule = new_text.find("set heading(numbering: \"1.1\")").unwrap();
+    let body = new_text.rfind("body").unwrap();
+    assert!(rule < body, "{new_text}");
+}
+
+#[test]
+fn a_binding_that_is_added_goes_next_to_the_theme_function() {
+    let mut context = make_context(None);
+
+    let (ok, _result, error) = run_tool(
+        &mut context,
+        "propose_style",
+        Some(&json!({
+            "selector": "let accent",
+            "declarations": "rgb(\"#3355ff\")",
+        })),
+    );
+
+    assert!(ok, "{error:?}");
+    let new_text = &context.edits[0].new_text;
+
+    // A binding is read wherever it is used, so it stands beside the theme
+    // function rather than inside it.
+    let binding = new_text.find("#let accent").unwrap();
+    let function = new_text.find("#let theme").unwrap();
+    assert!(binding > function, "{new_text}");
 }
 
 #[test]

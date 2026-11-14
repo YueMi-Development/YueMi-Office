@@ -992,6 +992,16 @@ fn link_children(entries: &mut [OutlineEntry]) {
     }
 }
 
+/// Checks that a project compiles, without writing a PDF.
+///
+/// The assistant uses this to refuse a change that would break the document
+/// before the user is asked about it. A change that only parses can still
+/// fail to compile, so a file that names a variable that is not there is
+/// caught here as well.
+pub fn check_project(request: &RenderRequest) -> Result<(), String> {
+    compile_project(request).map(|_| ())
+}
+
 /// Renders a project: the PDF, the outline and the warnings.
 pub fn render_project(request: &RenderRequest) -> Result<RenderedDocument, String> {
     let (document, warnings) = compile_project(request)?;

@@ -219,6 +219,60 @@ impl ToolContext {
             fonts: self.fonts.clone(),
         }
     }
+
+    /// The render request with the changes proposed so far put in place.
+    ///
+    /// The changes are put in place because the document is compiled as it
+    /// would be if the user kept them, not as it was when the session
+    /// started.
+    ///
+    /// The file at `path` is replaced with `new_text` when it is given. A
+    /// file that is not in the project yet is only added to the project when
+    /// it has text, because a file that is not there is not part of the
+    /// document.
+    fn request_with_changes(&self, path: &str, new_text: Option<&str>) -> RenderRequest {
+        let mut files = self.files.clone();
+
+        for edit in &self.edits {
+            match files.iter_mut().find(|file| file.path == edit.path) {
+                Some(file) => file.text = edit.new_text.clone(),
+                None => files.push(ProjectFile {
+                    path: edit.path.clone(),
+                    text: edit.new_text.clone(),
+                }),
+            }
+        }
+
+        let mut project = self.project.clone();
+
+        if let Some(new_text) = new_text {
+            match files.iter_mut().find(|file| file.path == path) {
+                Some(file) => file.text = new_text.to_string(),
+                None => files.push(ProjectFile {
+                    path: path.to_string(),
+                    text: new_text.to_string(),
+                }),
+            }
+
+            let is_typst = path.to_ascii_lowercase().ends_with(".typ");
+            let is_theme = project
+                .theme
+                .as_deref()
+                .map(|theme| theme == path)
+                .unwrap_or(false);
+
+            if is_typst && !is_theme && !project.content.iter().any(|content| content == path) {
+                project.content.push(path.to_string());
+            }
+        }
+
+        RenderRequest {
+            project,
+            files,
+            assets: self.assets.clone(),
+            fonts: self.fonts.clone(),
+        }
+    }
 }
 
 /// A tool that could not do what it was asked.
@@ -394,6 +448,92 @@ fn tool_search(context: &ToolContext, arguments: &Value) -> Result<Value, ToolEr
     }))
 }
 
+/// The syntax errors in a Typst file, if it has any.
+///
+/// A file that does not parse is a file the renderer cannot use, so a change
+/// that leaves it broken is refused before the user is asked about it. A
+/// file that is not Typst is left alone, because it is not parsed as Typst.
+fn typst_errors(path: &str, text: &str) -> Vec<String> {
+    if !path.to_ascii_lowercase().ends_with(".typ") {
+        return Vec::new();
+    }
+
+    let root = typst::syntax::parse(text);
+    let (errors, _warnings) = root.errors_and_warnings();
+
+    errors
+        .into_iter()
+        .map(|error| error.message.to_string())
+        .collect()
+}
+
+/// Whether a change would leave the file unparseable.
+///
+/// A file that does not parse is a file the renderer cannot use, so a change
+/// that leaves it broken is refused before the user is asked about it.
+///
+/// The usual cause is a reply that stopped part way through, which leaves the
+/// file cut off in the middle of a block. A file that was already broken is
+/// refused as well: the assistant is told to write the whole file again, so
+/// it can put the file right rather than make it worse.
+fn breaks_the_file(path: &str, new_text: &str) -> Option<String> {
+    let errors = typst_errors(path, new_text);
+
+    if errors.is_empty() {
+        None
+    } else {
+        Some(errors.join("; "))
+    }
+}
+
+/// Whether a change would leave the document unable to compile.
+///
+/// A file can parse and still not compile, e.g. when a `show` rule names a
+/// variable that is not there. The document is compiled with and without the
+/// change, and the change is only held against it when the document compiled
+/// before and does not compile after.
+///
+/// A document that was already broken is not held against the change: the
+/// assistant may be the one repairing it.
+fn breaks_the_compile(context: &ToolContext, path: &str, new_text: &str) -> Option<String> {
+    if !path.to_ascii_lowercase().ends_with(".typ") {
+        return None;
+    }
+
+    // The document as it is now, with the changes proposed so far put in
+    // place. When it does not compile, it was already broken.
+    if crate::render::check_project(&context.request_with_changes(path, None)).is_err() {
+        return None;
+    }
+
+    // The document compiled a moment ago, so every error in it is one the
+    // change brought about.
+    let errors =
+        crate::render::check_project(&context.request_with_changes(path, Some(new_text))).err()?;
+
+    Some(errors.replace('\n', "; "))
+}
+
+/// The reason a change is refused, if it is.
+///
+/// A change that breaks the document is refused before the user is asked
+/// about it, so the user is never offered a document that does not work.
+fn refusal_reason(context: &ToolContext, path: &str, new_text: &str) -> Option<String> {
+    breaks_the_file(path, new_text).or_else(|| breaks_the_compile(context, path, new_text))
+}
+
+/// The message a refused change is reported with.
+///
+/// The assistant reads this, so it says what went wrong and what to do
+/// about it, rather than only that something did.
+fn refused_change(path: &str, reason: &str) -> String {
+    format!(
+        "The new contents of '{path}' are not valid Typst: {reason}. \
+         The file was left as it was. Write the whole file again, \
+         including the parts you did not change."
+    )
+}
+
 /// Proposes a new version of a file.
 fn tool_propose_edit(context: &mut ToolContext, arguments: &Value) -> Result<Value, ToolError> {
     let path = string_argument(arguments, "path")
@@ -411,6 +551,10 @@ fn tool_propose_edit(context: &mut ToolContext, arguments: &Value) -> Result<Val
     } else {
         "create"
     };
+
+    if let Some(reason) = refusal_reason(context, &path, &new_text) {
+        return Err(refused_change(&path, &reason));
+    }
 
     let edit = context.propose(&path, &old_text, &new_text, kind);
 
@@ -665,7 +809,96 @@ fn typst_string(text: &str) -> String {
     format!("\"{}\"", trimmed.replace('\\', "\\\\").replace('"', "\\\""))
 }
 
-/// Turns the declarations of a style into Typst code.
+/// The place in a theme where a new style belongs.
+///
+/// A style only applies to the document when it is inside the `theme`
+/// function and before the body it wraps, because a `set` rule applies to
+/// the content that follows it. A style that is added after the function
+/// would be read but never reach the document, so that is where a new style
+/// is put.
+///
+/// The place given is the start of the line the body stands on, together
+/// with the indentation of that line, so that a rule is written on a line of
+/// its own in the same shape as the rest of the theme.
+fn theme_insertion_point(text: &str) -> Option<(usize, String)> {
+    let source = Source::detached(text);
+    let linked = LinkedNode::new(source.root());
+
+    let body = find_body(&linked)?;
+
+    // The line the body stands on, without its indentation.
+    let line_start = text[..body].rfind('\n').map(|index| index + 1).unwrap_or(0);
+    let indent = text[line_start..body]
+        .chars()
+        .take_while(|character| character.is_whitespace())
+        .collect::<String>();
+
+    Some((line_start, indent))
+}
+
+/// The place of the body the theme function wraps.
+///
+/// The theme function is the binding named `theme`, and the body is the
+/// parameter it is given, whatever the parameter is called.
+fn find_body(node: &LinkedNode) -> Option<usize> {
+    for child in node.children() {
+        if child.get().kind() != SyntaxKind::LetBinding {
+            continue;
+        }
+
+        let Some(name) = binding_name(&child) else {
+            continue;
+        };
+
+        if name != "theme" {
+            continue;
+        }
+
+        let closure = child
+            .children()
+            .find(|grandchild| grandchild.get().kind() == SyntaxKind::Closure)?;
+
+        let parameter = closure
+            .children()
+            .find(|grandchild| grandchild.get().kind() == SyntaxKind::Params)?
+            .children()
+            .find(|grandchild| grandchild.get().kind() == SyntaxKind::Ident)?
+            .get()
+            .leaf_text()
+            .to_string();
+
+        return find_body_in_closure(&closure, &parameter);
+    }
+
+    None
+}
+
+/// The place of the body inside the body of the theme function.
+fn find_body_in_closure(node: &LinkedNode, parameter: &str) -> Option<usize> {
+    for child in node.children() {
+        if child.get().kind() != SyntaxKind::CodeBlock {
+            continue;
+        }
+
+        for grandchild in child.children() {
+            if grandchild.get().kind() != SyntaxKind::Code {
+                continue;
+            }
+
+            for word in grandchild.children() {
+                if word.get().kind() == SyntaxKind::Ident
+                    && word.get().leaf_text().as_str() == parameter
+                {
+                    return Some(word.offset());
+                }
+            }
+        }
+    }
+
+    None
+}
+
+/// The declarations of a style into Typst code.
 fn declarations_code(value: &Value) -> Result<String, ToolError> {
     match value {
         Value::String(text) => Ok(text.trim().to_string()),
@@ -678,6 +911,63 @@ fn declarations_code(value: &Value) -> Result<String, ToolError> {
         }
         _ => Err("The 'declarations' of a style have to be text or an object.".to_string()),
     }
+}
+
+/// Whether the code refers to the `it` of a show rule.
+fn refers_to_it(code: &str) -> bool {
+    /// Whether the node is the `it` of a show rule.
+    fn is_it(node: &typst::syntax::SyntaxNode) -> bool {
+        node.kind() == SyntaxKind::Ident && node.leaf_text().as_str() == "it"
+    }
+
+    /// Whether the node holds the `it` of a show rule.
+    fn holds_it(node: &typst::syntax::SyntaxNode) -> bool {
+        if is_it(node) {
+            return true;
+        }
+
+        node.children().any(|child| {
+            // The name of an argument is a name, not a reference to a value,
+            // so only the value of the argument is looked at.
+            if child.kind() == SyntaxKind::Named {
+                let mut after_colon = false;
+
+                return child.children().any(|part| {
+                    if part.kind() == SyntaxKind::Colon {
+                        after_colon = true;
+                        return false;
+                    }
+
+                    after_colon && holds_it(part)
+                });
+            }
+
+            holds_it(child)
+        })
+    }
+
+    holds_it(&typst::syntax::parse_code(code))
+}
+
+/// The recipe a show rule needs.
+///
+/// A show rule replaces what it shows with the result of a recipe, and the
+/// recipe takes the shown content as `it`. A recipe that is written as a
+/// plain call and uses `it` is therefore turned into a closure, so that
+/// `block(above: 0pt, it)` becomes `it => block(above: 0pt, it)`.
+fn show_recipe(declarations: &str) -> String {
+    let trimmed = declarations.trim();
+    let root = typst::syntax::parse_code(trimmed);
+
+    let is_closure = root
+        .children()
+        .any(|child| child.kind() == SyntaxKind::Closure);
+
+    if is_closure || !refers_to_it(trimmed) {
+        return trimmed.to_string();
+    }
+
+    format!("it => {trimmed}")
 }
 
 /// Proposes a change to a style in the project's theme.
@@ -726,8 +1016,9 @@ fn tool_propose_style(context: &mut ToolContext, arguments: &Value) -> Result<Va
             )
         }
         Some(StyleTarget::Show(range)) => {
+            let recipe = show_recipe(&declarations);
             format!(
-                "{}{declarations}{}",
+                "{}{recipe}{}",
                 &old_text[..range.start],
                 &old_text[range.end..]
             )
@@ -740,29 +1031,65 @@ fn tool_propose_style(context: &mut ToolContext, arguments: &Value) -> Result<Va
             )
         }
         None => {
-            // The style is not there yet, so it is added at the end of the
-            // theme.
-            let separator = if old_text.ends_with("\n\n") {
-                ""
-            } else if old_text.ends_with('\n') {
-                "\n"
-            } else {
-                "\n\n"
-            };
-            match kind {
-                Some(StyleKind::Let) => {
-                    format!("{old_text}{separator}#let {name} = {declarations}\n")
-                }
+            // A binding is read wherever it is used, so it goes next to the
+            // theme function. A rule applies to the content that follows it,
+            // so it goes inside the theme function, in front of the body it
+            // wraps.
+            let inside = !matches!(kind, Some(StyleKind::Let));
+
+            // Inside the theme function the code is already code, so it is
+            // written without the `#` that marks code in the file itself.
+            let rule = match kind {
+                Some(StyleKind::Let) => format!("#let {name} = {declarations}"),
                 Some(StyleKind::Show) => {
-                    format!("{old_text}{separator}#show {name}: {declarations}\n")
+                    let recipe = show_recipe(&declarations);
+                    format!("#show {name}: {recipe}")
                 }
-                Some(StyleKind::Set) => {
-                    format!("{old_text}{separator}#set {name}({declarations})\n")
+                Some(StyleKind::Set) => format!("#set {name}({declarations})"),
+                None => format!("#set {name}({declarations})"),
+            };
+
+            let rule = if inside {
+                rule.trim_start_matches('#').to_string()
+            } else {
+                rule
+            };
+
+            let point = if inside {
+                theme_insertion_point(&old_text)
+            } else {
+                None
+            };
+
+            match point {
+                // The rule goes in front of the body the theme function
+                // wraps, so that it reaches the document.
+                Some((point, indent)) => {
+                    format!(
+                        "{}{indent}{rule}\n{}",
+                        &old_text[..point],
+                        &old_text[point..]
+                    )
                 }
-                None => format!("{old_text}{separator}#set {name}({declarations})\n"),
+                // There is no body to go in front of, so the rule is added at
+                // the end of the file.
+                None => {
+                    let separator = if old_text.ends_with("\n\n") {
+                        ""
+                    } else if old_text.ends_with('\n') {
+                        "\n"
+                    } else {
+                        "\n\n"
+                    };
+                    format!("{old_text}{separator}{rule}\n")
+                }
             }
         }
     };
+
+    if let Some(reason) = refusal_reason(context, &path, &new_text) {
+        return Err(refused_change(&path, &reason));
+    }
 
     let edit = context.propose(&path, &old_text, &new_text, "replace");
 

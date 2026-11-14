@@ -14,6 +14,44 @@ model cannot reach outside the project folder and cannot run commands.
 Six tools are on offer: `list_sections`, `read_section`, `search`,
 `propose_edit`, `propose_style` and `render_preview`.
 
+## A change is checked before it is offered
+
+A change that would break the document is refused before the user is ever
+asked about it. The check is made on the document as it would be if the
+user kept the changes proposed so far, so a change is judged against the
+document it belongs to and not against the document as it was when the
+session started.
+
+Two things are checked. The first is the file itself: a file that does not
+parse is a file the renderer cannot use, and the usual cause is a reply
+that stopped part way through and left the file cut off in the middle of a
+block. The second is the document as a whole: a file can parse and still
+not compile, e.g. when a `show` rule names a variable that is not there.
+The document is compiled with and without the change, and the change is
+only held against it when the document compiled before and does not
+compile after. A document that was already broken is not held against a
+change, so the assistant is free to repair it.
+
+A refused change is not an error the user has to read. The assistant is
+told what went wrong and is asked to write the whole file again, including
+the parts it did not change. The file is left as it was.
+
+## A style goes where it works
+
+A `set` rule applies to the content that follows it, and a `show` rule
+replaces what it shows, so both only reach the document when they are
+inside the `theme` function and in front of the body it wraps. A style
+that is added after the function would be read but never reach the
+document, so a new rule is written inside the function instead. A `let`
+binding is read wherever it is used, so it goes next to the function
+rather than inside it.
+
+A `show` rule needs a recipe. The recipe takes the shown content as `it`,
+so a rule that is written as a plain call and uses `it` is turned into a
+closure: `block(above: 0pt, it)` becomes `it => block(above: 0pt, it)`.
+Without that, `it` is a name nobody has bound and the document fails to
+compile. A rule that is already a recipe is left as it is.
+
 ```mermaid
 flowchart TD
     Q["The user's message"] --> P["The provider"]
