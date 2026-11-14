@@ -250,6 +250,33 @@ fn the_pages_are_rendered_as_images() {
 }
 
 #[test]
+fn a_page_break_makes_a_new_page() {
+    let request = request(
+        &[(
+            "content/one.typ",
+            "= One
+
+Text.
+
+#pagebreak()
+
+= Two
+
+More text.
+",
+        )],
+        &["content/one.typ"],
+    );
+
+    let rendered = render_project(&request).expect("the document should render");
+
+    assert_eq!(
+        rendered.outline.page_count, 2,
+        "the page break should start a second page"
+    );
+}
+
+#[test]
 fn a_landscape_page_is_flipped_rather_than_resized() {
     let mut request = request(&[("content/one.typ", "= One\n")], &["content/one.typ"]);
     request.project.page = PageConfig {

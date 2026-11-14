@@ -2,6 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { FileTree } from './features/files/FileTree';
 import { TypstEditor } from './features/editor/TypstEditor';
+import { ConfirmDialog } from './features/editor/ConfirmDialog';
+import { PageToolbar } from './features/editor/PageToolbar';
+import { usePageRemoval } from './features/editor/usePageRemoval';
 import { Outline } from './features/outline/Outline';
 import { PdfPreview } from './features/preview/PdfPreview';
 import { AssistantPanel } from './features/assistant/AssistantPanel';
@@ -15,13 +18,40 @@ import { usePreviewStore } from './state/previewStore';
 import { useProjectStore } from './state/projectStore';
 import { pickNewProjectFolder, pickSavePath } from './lib/dialog';
 import { exportFile, joinTypst, openProject } from './lib/files';
-import { parseProject } from './lib/project';
+import { basename, parseProject } from './lib/project';
+import { insertPage, pageIndexAt, splitPages } from './lib/pages';
 
 export function App() {
   const [projectIssues, setProjectIssues] = useState<string | null>(null);
   const [showTemplates, setShowTemplates] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showAssistant, setShowAssistant] = useState(false);
+  // Where the cursor is, and the file it is in. The offset belongs to the
+  // file it was measured in, so it is only used while that file is the one
+  // that is open.
+  const [cursor, setCursor] = useState<{ path: string; offset: number } | null>(null);
+  /**
+   * A request to put the cursor somewhere.
+   *
+   * The request is carried out once. The id tells a new request from the
+   * same request seen again after a render, so the cursor is not moved away
+   * from where the user put it. The path says which file the request is for,
+   * so that it is not carried out in another file.
+   */
+  const [cursorRequest, setCursorRequest] = useState<{
+    path: string;
+    offset: number;
+    id: number;
+  } | null>(null);
+  const requestCountRef = useRef(0);
+
+  const {
+    pendingRemoval,
+    requestPageRemoval,
+    requestFileRemoval,
+    confirmRemoval,
+    cancelRemoval,
+  } = usePageRemoval();
 
   const {
     project,
@@ -29,7 +59,6 @@ export function App() {
     dirty,
     rootPath,
     setFileText,
-    removeContentFile,
     reorderContent,
     markSaved,
     commit,
@@ -189,6 +218,71 @@ export function App() {
     [activeFile, files],
   );
 
+  // The pages of the open file. A file is a tab, and a tab holds as many
+  // pages as it has page breaks.
+  const pages = useMemo(() => splitPages(editorValue), [editorValue]);
+
+  // The page the cursor is on.
+  //
+  // The offset belongs to the file it was measured in, so it is only used
+  // while that file is the one that is open. Opening another file starts at
+  // the beginning of it, which is where the editor puts the cursor.
+  const cursorOffset = cursor && cursor.path === activeFile ? cursor.offset : 0;
+  const cursorPage = useMemo(
+    () => pageIndexAt(pages, cursorOffset),
+    [pages, cursorOffset],
+  );
+
+  const handleCursorChange = useCallback(
+    (offset: number) => {
+      if (!activeFile) {
+        return;
+      }
+      setCursor({ path: activeFile, offset });
+    },
+    [activeFile],
+  );
+
+  // The theme is not part of the document, so it has no pages to add to or
+  // take away.
+  const canEditPages = activeFile !== null && activeFile !== project.theme;
+
+  const handleAddPage = useCallback(() => {
+    if (!activeFile || !canEditPages) {
+      return;
+    }
+
+    const text = useProjectStore.getState().files[activeFile] ?? '';
+    const insertion = insertPage(text, cursorOffset);
+    setFileText(activeFile, insertion.text);
+    // The break is one action, so it is committed as one undo step rather
+    // than as part of whatever burst of typing comes next.
+    commit();
+    // The cursor is put on the page that was just made, so the writer can
+    // go straight on with it.
+    requestCountRef.current += 1;
+    setCursorRequest({
+      path: activeFile,
+      offset: insertion.offset,
+      id: requestCountRef.current,
+    });
+  }, [activeFile, canEditPages, commit, cursorOffset, setFileText]);
+
+  const handleRemovePageRequest = useCallback(() => {
+    if (!activeFile || !canEditPages) {
+      return;
+    }
+
+    requestPageRemoval(activeFile, cursorPage);
+  }, [activeFile, canEditPages, cursorPage, requestPageRemoval]);
+
+  const handleRemoveFileRequest = useCallback(
+    (path: string) => {
+      requestFileRemoval(path);
+    },
+    [requestFileRemoval],
+  );
+
   const handleOpenWarningFile = useCallback(
     (path: string) => {
       setActivePath(path);
@@ -279,7 +373,7 @@ export function App() {
               theme={project.theme}
               activePath={activeFile}
               onSelect={setActivePath}
-              onRemove={removeContentFile}
+              onRemove={handleRemoveFileRequest}
               onMove={reorderContent}
             />
           </section>
@@ -292,11 +386,27 @@ export function App() {
 
         <section className="app-editor">
           {activeFile ? (
-            <TypstEditor
-              value={editorValue}
-              onChange={handleTextChange}
-              onCommit={commit}
-            />
+            <>
+              <PageToolbar
+                fileName={basename(activeFile)}
+                pageIndex={cursorPage}
+                pageCount={pages.length}
+                canEdit={canEditPages}
+                onAddPage={handleAddPage}
+                onRemovePage={handleRemovePageRequest}
+              />
+              <TypstEditor
+                value={editorValue}
+                onChange={handleTextChange}
+                onCommit={commit}
+                onCursorChange={handleCursorChange}
+                cursorRequest={
+                  cursorRequest && cursorRequest.path === activeFile
+                    ? cursorRequest
+                    : null
+                }
+              />
+            </>
           ) : (
             <div className="editor-placeholder">
               <p>No file is open.</p>
@@ -325,6 +435,32 @@ export function App() {
       )}
 
       {showSettings && <SettingsDialog onClose={() => setShowSettings(false)} />}
+
+      {pendingRemoval?.kind === 'page' && (
+        <ConfirmDialog
+          title="Remove page"
+          message={`The page ${
+            pendingRemoval.index + 1
+          } of ${basename(pendingRemoval.path)}${
+            pendingRemoval.title ? ` (${pendingRemoval.title})` : ''
+          } will be taken out of the file. The change can be undone.`}
+          confirmLabel="Remove page"
+          onConfirm={confirmRemoval}
+          onCancel={cancelRemoval}
+        />
+      )}
+
+      {pendingRemoval?.kind === 'file' && (
+        <ConfirmDialog
+          title="Remove file"
+          message={`The file ${basename(
+            pendingRemoval.path,
+          )} will be taken out of the document. The change can be undone.`}
+          confirmLabel="Remove file"
+          onConfirm={confirmRemoval}
+          onCancel={cancelRemoval}
+        />
+      )}
     </div>
   );
 }

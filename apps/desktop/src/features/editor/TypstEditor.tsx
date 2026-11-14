@@ -18,6 +18,21 @@ export interface TypstEditorProps {
   onChange: (value: string) => void;
   /** Called after the user pauses, so one undo step covers one editing burst. */
   onCommit?: () => void;
+  /**
+   * Called with the offset of the cursor whenever it moves.
+   *
+   * The offset is where the cursor sits in the text, counted from the start
+   * of the file, which is what the page the cursor is on is worked out from.
+   */
+  onCursorChange?: (offset: number) => void;
+  /**
+   * A request to put the cursor at an offset.
+   *
+   * The request is carried out once. The id tells a new request from the
+   * same request seen again after a render, so the cursor is not moved away
+   * from where the user put it.
+   */
+  cursorRequest?: { offset: number; id: number } | null;
   readOnly?: boolean;
 }
 
@@ -55,6 +70,8 @@ export function TypstEditor({
   value,
   onChange,
   onCommit,
+  onCursorChange,
+  cursorRequest = null,
   readOnly = false,
 }: TypstEditorProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
@@ -62,7 +79,15 @@ export function TypstEditor({
   const readOnlyCompartment = useRef(new Compartment());
   const onChangeRef = useRef(onChange);
   const onCommitRef = useRef(onCommit);
+  const onCursorChangeRef = useRef(onCursorChange);
   const commitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /**
+   * The id of the last cursor request that was carried out.
+   *
+   * The request is only carried out once, so the cursor is not moved away
+   * from where the user put it the next time the file is rendered.
+   */
+  const handledCursorRequest = useRef<number | null>(null);
 
   // The change handler is kept in a ref so the CodeMirror listener does not
   // have to be rebuilt on every render, which would tear down the editor.
@@ -72,6 +97,7 @@ export function TypstEditor({
   useEffect(() => {
     onChangeRef.current = onChange;
     onCommitRef.current = onCommit;
+    onCursorChangeRef.current = onCursorChange;
   });
 
   // A pause in typing ends the current editing burst and records an undo
@@ -107,6 +133,12 @@ export function TypstEditor({
                 commitTimer.current = null;
                 onCommitRef.current?.();
               }, 600);
+            }
+
+            // The cursor is reported whenever it moves, and after a change
+            // as well, because a change moves it.
+            if (update.selectionSet || update.docChanged) {
+              onCursorChangeRef.current?.(update.state.selection.main.head);
             }
           }),
         ],
@@ -152,6 +184,28 @@ export function TypstEditor({
       ),
     });
   }, [readOnly]);
+
+  // Put the cursor where the app asked for it.
+  //
+  // The request is carried out once. The same request is seen again after
+  // every render, and moving the cursor every time would take it away from
+  // where the user put it.
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view || !cursorRequest) {
+      return;
+    }
+
+    if (handledCursorRequest.current === cursorRequest.id) {
+      return;
+    }
+
+    handledCursorRequest.current = cursorRequest.id;
+
+    const offset = Math.max(0, Math.min(cursorRequest.offset, view.state.doc.length));
+    view.dispatch({ selection: { anchor: offset } });
+    view.focus();
+  }, [cursorRequest]);
 
   return <div ref={hostRef} className="editor-host" data-testid="typst-editor" />;
 }
