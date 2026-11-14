@@ -237,9 +237,26 @@ export function asksForBash(step: Step): boolean {
   return shell === 'bash' || shell === 'sh';
 }
 
-/** Whether a command is spread over several lines with backslashes. */
+/**
+ * Whether a command is spread over several lines with backslashes.
+ */
 export function usesContinuation(command: string[]): boolean {
   return command.some((line) => line.trimEnd().endsWith('\\'));
+}
+
+/**
+ * Whether a command has an expression written into it.
+ *
+ * An expression in a command is put into the text of the command before
+ * the shell reads it, so the value is quoted by whatever the shell thinks
+ * it is looking at. A path with backslashes in it loses them that way,
+ * and the script the command calls never sees the path that was meant.
+ *
+ * The value belongs in the environment of the step, where the shell does
+ * not get to quote it.
+ */
+export function writesAnExpression(command: string[]): boolean {
+  return command.some((line) => line.includes('${{'));
 }
 
 /**
@@ -258,6 +275,21 @@ export function brokenSteps(jobs: Job[]): string[] {
   const broken: string[] = [];
 
   for (const job of jobs) {
+    for (const step of job.steps) {
+      // An expression written into a command is broken wherever the job
+      // runs. The shell reads the command before the script does, and the
+      // value is quoted by whatever the shell thinks it is looking at.
+      if (writesAnExpression(step.command)) {
+        broken.push(
+          `${job.name} / ${step.name || 'a step'} (line ${step.line}): ` +
+            'an expression written into a command is quoted by the shell ' +
+            'before the script sees it, so the value has to be given to the ' +
+            'step through its environment',
+        );
+        continue;
+      }
+    }
+
     if (!runsOnWindows(job)) {
       continue;
     }

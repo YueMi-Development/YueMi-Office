@@ -192,6 +192,13 @@ it read a trailing backslash as a line continuation. A test checks that
 rule for the whole workflow file, because nothing else in the suite looks
 at it.
 
+A value that a step needs goes into the environment of the step rather
+than into its command. The shell reads a command before the script does,
+so a value pasted into a command line is quoted by the shell first: the
+location of the toolchain on a Windows runner lost its backslashes that
+way, and the loader was pointed at a folder that is not there. A test
+checks that rule for the whole workflow file too.
+
 The backend tests run inside the render image, because the visual baselines
 were produced by exactly that stack: the same Debian release, the same
 Pango, the same WeasyPrint. Running them against the runner's own libraries

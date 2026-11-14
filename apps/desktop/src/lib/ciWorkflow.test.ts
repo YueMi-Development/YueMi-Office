@@ -156,6 +156,96 @@ describe('the workflow', () => {
     expect(ci).toContain('version:report');
   });
 
+  it('catches a step that writes an expression into its command', () => {
+    // An expression in a command is put into the text of the command
+    // before the shell reads it, so the value is quoted by whatever the
+    // shell thinks it is looking at. A path with backslashes in it loses
+    // them there, and the script never sees the path that was meant.
+    //
+    // The visual check on a Windows runner was broken that way for a whole
+    // run, and the failure said nothing about the path.
+    const broken = brokenSteps(
+      readJobs(
+        [
+          '  visual:',
+          '    runs-on: windows-latest',
+          '    steps:',
+          '      - name: Point the loader',
+          '        shell: bash',
+          '        run: .github/scripts/point-libraries.sh windows ${{ steps.msys2.outputs.msys2-location }}',
+        ].join('\n'),
+      ),
+    );
+
+    expect(broken).toHaveLength(1);
+    expect(broken[0]).toContain('environment');
+  });
+
+  it('catches an expression in a command on a job that cannot run on Windows', () => {
+    // The mangling of the value is not something Windows does and the
+    // other systems do not. Every shell reads the command first.
+    const broken = brokenSteps(
+      readJobs(
+        [
+          '  lint:',
+          '    runs-on: ubuntu-latest',
+          '    steps:',
+          '      - name: Lint',
+          '        run: .github/scripts/lint-rust.sh ${{ matrix.target }}',
+        ].join('\n'),
+      ),
+    );
+
+    expect(broken).toHaveLength(1);
+    expect(broken[0]).toContain('environment');
+  });
+
+  it('accepts a step that gets its value from the environment', () => {
+    const broken = brokenSteps(
+      readJobs(
+        [
+          '  visual:',
+          '    runs-on: windows-latest',
+          '    steps:',
+          '      - name: Point the loader',
+          '        shell: bash',
+          '        env:',
+          '          MSYS2_LOCATION: ${{ steps.msys2.outputs.msys2-location }}',
+          '        run: .github/scripts/point-libraries.sh windows',
+        ].join('\n'),
+      ),
+    );
+
+    expect(broken).toEqual([]);
+  });
+
+  it('gives the toolchain to the script through the environment', () => {
+    // The location of the toolchain has backslashes in it, and a command
+    // line eats them. The step that failed is named here so that putting
+    // the path back into the command is a failure with a message that
+    // says what is wrong.
+    const visual = readJobs(ci).find((job) => job.name === 'visual');
+    const point = visual?.steps.find(
+      (step) => step.name === 'Point the loader at the libraries on Windows',
+    );
+
+    expect(point).toBeDefined();
+    expect(point?.command.join(' ')).not.toContain('${{');
+    expect(ci).toContain('MSYS2_LOCATION: ${{ steps.msys2.outputs.msys2-location }}');
+  });
+
+  it('gives the lint job the libraries its Rust compile needs', () => {
+    // The Rust lint compiles the whole crate, and the crate sits on top of
+    // Tauri, which needs the glib and webkit development libraries to
+    // build against. Without them the compile stops with a message about
+    // a missing pkg-config file rather than about the code.
+    const lint = readJobs(ci).find((job) => job.name === 'lint');
+    const commands = (lint?.steps ?? []).flatMap((step) => step.command).join('\n');
+
+    expect(commands).toContain('.github/scripts/install-linux-deps.sh');
+    expect(commands).toContain('libwebkit2gtk-4.1-dev');
+  });
+
   it('asks for bash where the lint job runs a script', () => {
     // The scripts under `.github/scripts` are shell scripts, and a runner
     // on Windows runs a step in PowerShell by default. The lint job runs

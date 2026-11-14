@@ -157,6 +157,19 @@ describe('the linters', () => {
     expect(brokenSteps(readJobs(ci))).toEqual([]);
   });
 
+  it('give the Rust lint the libraries it compiles against', () => {
+    // The Rust lint compiles the whole crate, and the crate sits on top of
+    // Tauri, which needs the glib and webkit development libraries to
+    // build against. A lint job without them stops with a message about
+    // a missing pkg-config file rather than about the code.
+    const commands = lintSteps()
+      .flatMap((step) => step.command)
+      .join('\n');
+
+    expect(commands).toContain('.github/scripts/install-linux-deps.sh');
+    expect(commands).toContain('libwebkit2gtk-4.1-dev');
+  });
+
   it('lint the three languages of the tree', () => {
     // Each script says which tool it runs, so a script that stops running
     // its linter is a failure with a message that says what is wrong.
