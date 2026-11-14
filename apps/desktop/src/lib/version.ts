@@ -161,6 +161,76 @@ export function macosBundleVersion(version: SemVer): string {
 }
 
 /**
+ * The kind of a pre-release.
+ *
+ * The three kinds are in the order they come in: an alpha comes before a
+ * beta, and a beta comes before a release candidate.
+ */
+export type PreReleaseKind = 'alpha' | 'beta' | 'rc';
+
+/**
+ * The kind of pre-release a version is.
+ *
+ * The identifier of a pre-release starts with the word that names the
+ * kind, and may carry a number after it: `beta`, `beta.4`, `rc.1`. The
+ * word is looked for at the front rather than compared as a string,
+ * because a string compare puts `rc` before `beta`.
+ *
+ * Returns null for a stable version, and for a pre-release whose
+ * identifier names no known kind.
+ */
+export function preReleaseKind(version: SemVer): PreReleaseKind | null {
+  if (!version.prerelease) {
+    return null;
+  }
+
+  const word = version.prerelease.split('.')[0].toLowerCase();
+
+  if (word === 'alpha' || word === 'a') {
+    return 'alpha';
+  }
+
+  if (word === 'beta' || word === 'b') {
+    return 'beta';
+  }
+
+  if (word === 'rc') {
+    return 'rc';
+  }
+
+  return null;
+}
+
+/**
+ * The version the Linux packages carry.
+ *
+ * The Tauri bundler takes one version and uses it for every file name and
+ * every package it writes, and the configuration it reads refuses
+ * anything that is not plain semver. The Linux packages are the two that
+ * cannot take a dash: rpm rejects one outright, and Debian reads
+ * `1.0.0-beta` as `1.0.0` with a revision, which sorts *after* the
+ * finished release and so stops apt from upgrading to it.
+ *
+ * Both tools understand a tilde. `1.0.0~beta` is upstream `1.0.0` with a
+ * revision that sorts before the plain `1.0.0`, which is the order a
+ * pre-release has to have.
+ *
+ * A dash inside the identifier is a dot here. A dash is not allowed in
+ * the version of an rpm at all, and a dash in the middle of a Debian
+ * version is read as the separator between the upstream version and the
+ * revision, which is not what the identifier means.
+ */
+export function packageVersion(version: SemVer): string {
+  const base = `${version.major}.${version.minor}.${version.patch}`;
+
+  if (!version.prerelease) {
+    return base;
+  }
+
+  return `${base}~${version.prerelease.replace(/-/g, '.')}`;
+}
+
+/**
  * Writes a version into a `Cargo.toml`.
  *
  * Only the version of the package itself is changed. The dependencies

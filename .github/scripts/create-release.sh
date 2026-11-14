@@ -6,7 +6,7 @@
 #
 # The arguments are the tag, the version and whether the release is a
 # pre-release. The id of the release is written to GITHUB_OUTPUT, so the
-# three platform jobs can upload into it.
+# platform jobs can upload into it.
 #
 # The release is created once, here, and the platform jobs upload into
 # it. If each of them created it, they would race each other. The
@@ -31,7 +31,7 @@ trap 'rm -f "$release_file"' EXIT
 if gh api "repos/$GITHUB_REPOSITORY/releases/tags/$tag" > "$release_file" 2>/dev/null; then
   echo "The release for $tag already exists."
 else
-  notes="yuemi $version, built from $tag.
+  notes="YueMi Office $version, built from $tag.
 
 The installers are not signed. macOS and Windows will warn about
 an application from an unknown developer."
@@ -40,14 +40,14 @@ an application from an unknown developer."
     gh api --method POST "repos/$GITHUB_REPOSITORY/releases" \
       -f tag_name="$tag" \
       -f target_commitish="$GITHUB_SHA" \
-      -f name="yuemi $version" \
+      -f name="YueMi Office $version" \
       -f body="$notes" \
       -F prerelease=true > "$release_file"
   else
     gh api --method POST "repos/$GITHUB_REPOSITORY/releases" \
       -f tag_name="$tag" \
       -f target_commitish="$GITHUB_SHA" \
-      -f name="yuemi $version" \
+      -f name="YueMi Office $version" \
       -f body="$notes" > "$release_file"
   fi
 fi

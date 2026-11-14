@@ -4,15 +4,18 @@ import release from '../../../../.github/workflows/release.yml?raw';
 import createRelease from '../../../../.github/scripts/create-release.sh?raw';
 import versionFromTag from '../../../../.github/scripts/version-from-tag.sh?raw';
 import applyTagVersion from '../../../../.github/scripts/apply-tag-version.sh?raw';
+import fixDebVersion from '../../../../.github/scripts/fix-deb-version.sh?raw';
+import buildLinuxPackages from '../../../../.github/scripts/build-linux-packages.sh?raw';
+import uploadReleaseFiles from '../../../../.github/scripts/upload-release-files.sh?raw';
 import { brokenSteps, readJobs } from './workflowScan';
 
 /**
  * The release workflow.
  *
  * A release is built from a tag and only from a tag, so the workflow
- * must not run on an ordinary push. The three platform jobs upload into
- * one release, and the release is created once, before them, so that they
- * do not race each other.
+ * must not run on an ordinary push. The platform jobs upload into one
+ * release, and the release is created once, before them, so that they do
+ * not race each other.
  *
  * The work of reading the version and creating the release is in the
  * scripts under `.github/scripts`, because a workflow file is a list of
@@ -31,11 +34,12 @@ describe('the release workflow', () => {
 
   it('builds the three platforms', () => {
     const bundle = readJobs(release).find((job) => job.name === 'bundle');
+    const linux = readJobs(release).find((job) => job.name === 'linux');
 
     expect(bundle).toBeDefined();
-    expect(release).toContain(
-      'platform: [ubuntu-latest, macos-latest, windows-latest]',
-    );
+    expect(linux).toBeDefined();
+    expect(release).toContain('platform: [macos-latest, windows-latest]');
+    expect(linux?.runsOn).toBe('ubuntu-latest');
   });
 
   it('creates the release once, before the platform jobs', () => {
@@ -50,8 +54,8 @@ describe('the release workflow', () => {
   });
 
   it('does not let each platform job create the release', () => {
-    // The action creates a release itself when it is given a tag, and
-    // three jobs doing that would race each other.
+    // The action creates a release itself when it is given a tag, and the
+    // jobs doing that would race each other.
     expect(release).not.toContain('tagName:');
     expect(release).toContain('releaseId:');
   });
@@ -114,6 +118,54 @@ describe('the release workflow', () => {
 
   it('has no step that breaks on a Windows runner', () => {
     expect(brokenSteps(readJobs(release))).toEqual([]);
+  });
+
+  it('says whether the tag names a pre-release', () => {
+    // The Linux job needs to know, because an rpm cannot be built for a
+    // pre-release.
+    expect(release).toContain('prerelease: ${{ steps.version.outputs.prerelease }}');
+  });
+
+  it('builds the Linux packages on their own job', () => {
+    // The Debian package is rewritten after it is built, because the
+    // bundler puts the version of the app into the control file of the
+    // package and Debian reads a pre-release identifier in that field as
+    // a revision that sorts after the finished release. The upload has
+    // to happen after the rewrite, so the Linux job cannot use the Tauri
+    // action, which uploads what it builds.
+    const jobs = readJobs(release);
+    const linux = jobs.find((job) => job.name === 'linux');
+
+    expect(linux).toBeDefined();
+    expect(
+      linux?.steps.some((step) =>
+        step.command.some((line) => line.includes('build-linux-packages.sh')),
+      ),
+    ).toBe(true);
+    expect(
+      linux?.steps.some((step) =>
+        step.command.some((line) => line.includes('upload-release-files.sh')),
+      ),
+    ).toBe(true);
+  });
+
+  it('leaves the rpm out of a pre-release', () => {
+    // The version of an rpm has to be set while it is built, and the
+    // only version the bundler takes is the one in the configuration,
+    // which has to be a plain semver version.
+    expect(release).toContain('bundles=deb,appimage');
+    expect(release).toContain('bundles=deb,appimage,rpm');
+  });
+
+  it('rewrites the version inside the Debian package', () => {
+    expect(buildLinuxPackages).toContain('fix-deb-version.sh');
+    expect(fixDebVersion).toContain('Version:');
+    expect(fixDebVersion).toContain('dpkg-deb');
+  });
+
+  it('uploads the packages into the release that is already there', () => {
+    expect(uploadReleaseFiles).toContain('gh release upload');
+    expect(release).toContain('TAG: ${{ github.ref_name }}');
   });
 
   it('asks for bash where a shell script is run', () => {

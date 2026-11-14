@@ -14,7 +14,9 @@ import {
   applyVersion,
   isPrereleaseTag,
   macosBundleVersion,
+  packageVersion,
   parseVersion,
+  preReleaseKind,
   setBunLockVersion,
   setCargoLockVersion,
   setCargoVersion,
@@ -111,6 +113,30 @@ describe('a version', () => {
   it('gives macOS a build version of numbers', () => {
     expect(macosBundleVersion(parseVersion('1.0.0')!)).toBe('1.0.0');
     expect(macosBundleVersion(parseVersion('1.0.0-beta')!)).toBe('1.0.0');
+  });
+
+  it('knows the kind of a pre-release', () => {
+    expect(preReleaseKind(parseVersion('1.0.0')!)).toBeNull();
+    expect(preReleaseKind(parseVersion('1.0.0-alpha')!)).toBe('alpha');
+    expect(preReleaseKind(parseVersion('1.0.0-beta')!)).toBe('beta');
+    expect(preReleaseKind(parseVersion('1.0.0-beta.4')!)).toBe('beta');
+    expect(preReleaseKind(parseVersion('1.0.0-rc.1')!)).toBe('rc');
+  });
+
+  it('gives the Linux packages a version they can take', () => {
+    // Debian and rpm both read a tilde as a revision that sorts before
+    // the finished release, which is the order a pre-release has to have.
+    expect(packageVersion(parseVersion('1.0.0')!)).toBe('1.0.0');
+    expect(packageVersion(parseVersion('1.0.0-beta')!)).toBe('1.0.0~beta');
+    expect(packageVersion(parseVersion('1.0.0-rc.1')!)).toBe('1.0.0~rc.1');
+    expect(packageVersion(parseVersion('1.0.0-beta.4')!)).toBe('1.0.0~beta.4');
+  });
+
+  it('gives the Linux packages a version with no dash in it', () => {
+    // A dash is not allowed in the version of an rpm at all, and Debian
+    // reads one as the separator between the upstream version and the
+    // revision.
+    expect(packageVersion(parseVersion('1.0.0-beta-2')!)).toBe('1.0.0~beta.2');
   });
 });
 

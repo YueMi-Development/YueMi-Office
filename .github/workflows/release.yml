@@ -32,6 +32,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
       release_id: ${{ steps.create.outputs.release_id }}
     steps:
       - uses: actions/checkout@v7
@@ -50,7 +51,7 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: .github/scripts/version-from-tag.sh "$TAG"
 
-      # The release is created once, here, and the three platform jobs
+      # The release is created once, here, and the platform jobs
       # upload into it. If each of them created it, they would race.
       # The release is fetched first when it already exists, so that a
       # re-run of a failed workflow adds to it rather than failing.
@@ -71,15 +72,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform: [ubuntu-latest, macos-latest, windows-latest]
+        platform: [macos-latest, windows-latest]
     steps:
       - uses: actions/checkout@v7
-
-      # The AppImage is built by a tool that runs inside a FUSE mount, and
-      # the webview and the tray icon need the libraries below.
-      - name: Install Linux dependencies
-        if: runner.os == 'Linux'
-        run: .github/scripts/install-linux-deps.sh libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf xdg-utils file wget xz-utils fuse
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
@@ -128,8 +123,8 @@ jobs:
           projectPath: apps/desktop
           # The release was made by the step above, so the action only
           # has to upload into it. The action creates a release itself
-          # when it is given a tag, and three jobs doing that would
-          # race each other.
+          # when it is given a tag, and the jobs doing that would race
+          # each other.
           releaseId: ${{ needs.release.outputs.release_id }}
           # There is no updater keypair yet, so there is no updater
           # manifest to publish.
@@ -139,3 +134,85 @@ jobs:
           uploadPlainBinary: true
           # The artifacts are on the run page as well as on the release.
           uploadWorkflowArtifacts: true
+
+  linux:
+    name: Bundle linux
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # The AppImage is built by a tool that runs inside a FUSE mount, and
+      # the webview and the tray icon need the libraries below.
+      - name: Install Linux dependencies
+        shell: bash
+        run: .github/scripts/install-linux-deps.sh libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf xdg-utils file wget xz-utils fuse
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri -> target
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # The version of a release is the version of its tag, so the tag's
+      # version is written into the tree before the build. The script does
+      # the work, because a workflow file is a list of steps and a step
+      # that is forty lines of shell is not a step.
+      - name: Set the version
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
+        run: .github/scripts/apply-tag-version.sh "$TAG"
+
+      - name: Update the lockfile
+        run: bun install
+
+      # An rpm cannot be built for a pre-release. Its version has to be
+      # set while it is built, and the only version the bundler takes is
+      # the one in the configuration, which has to be a plain semver
+      # version. So the rpm is left out for a pre-release and built for a
+      # release.
+      #
+      # The flag comes in through the environment rather than through the
+      # command, because the shell reads the command before the script
+      # does.
+      - name: Choose the packages to build
+        id: packages
+        shell: bash
+        env:
+          PRERELEASE: ${{ needs.release.outputs.prerelease }}
+        run: |
+          if [ "$PRERELEASE" = "true" ]; then
+            echo "bundles=deb,appimage" >> "$GITHUB_OUTPUT"
+          else
+            echo "bundles=deb,appimage,rpm" >> "$GITHUB_OUTPUT"
+          fi
+
+      # The Debian package is built by the bundler and then rewritten,
+      # because the bundler puts the version of the app into the control
+      # file of the package and Debian reads a pre-release identifier in
+      # that field as a revision that sorts after the finished release.
+      - name: Build the packages
+        shell: bash
+        env:
+          BUNDLES: ${{ steps.packages.outputs.bundles }}
+        run: .github/scripts/build-linux-packages.sh "$BUNDLES"
+
+      # The upload is done here rather than by the Tauri action, because
+      # the package has to be rewritten before it is uploaded.
+      - name: Upload the packages
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: .github/scripts/upload-release-files.sh "$TAG" apps/desktop/src-tauri/target/release/bundle apps/desktop/src-tauri/target/release/yuemi

@@ -86,6 +86,37 @@ The version in the file names comes from `apps/desktop/src-tauri/tauri.conf.json
 `bun run set-version 1.0.0-beta` puts a different one there and in the other
 files that carry it.
 
+A pre-release is a version with a dash in it, and every platform builds one.
+What the installers carry, and what the Linux packages carry, is not the same
+thing:
+
+| Platform | What it carries for `1.0.0-beta` |
+|---|---|
+| Windows | the installer shows `1.0.0-beta`; the MSI is built with the numbers `1.0.0.0` |
+| macOS | the app shows `1.0.0-beta`; the build version is `1.0.0` |
+| Linux | the file names say `1.0.0-beta`; the packages carry `1.0.0~beta` |
+
+The tilde in the Linux packages is not a typo. Debian reads `1.0.0-beta` as
+the upstream version `1.0.0` with the revision `beta`, and a revision sorts
+after no revision at all, so the finished release would look older than the
+pre-release and `apt` would not upgrade to it. `1.0.0~beta` says that the
+revision sorts *before* the finished release, which is the order a pre-release
+has to have. The tilde is also the only form of it that rpm accepts.
+
+The rpm is the one package that cannot be built for a pre-release at all. Its
+version has to be set while it is built, and the only version the bundler
+takes is the one in the configuration, which has to be a plain semver version.
+So a pre-release is built with the Debian package and the AppImage only:
+
+```bash
+bun run build:desktop --bundles deb,appimage
+```
+
+The Debian package is built with the version of the app in it, so it is
+rewritten afterwards with the version that Debian reads in the right order.
+That is what `.github/scripts/fix-deb-version.sh` does, and the release
+workflow runs it before the package is uploaded.
+
 The builds are not signed. Windows and macOS will warn about an application
 from an unknown developer.
 
@@ -151,10 +182,35 @@ bun run version:report           # says what each file carries
 it, so a tree that would build the wrong thing is caught before a release
 rather than after one.
 
+A third command answers what the Linux packages would carry:
+
+```bash
+bun run package-version           # 0.1.0
+bun run package-version 1.0.0-beta # 1.0.0~beta
+```
+
 The rules live in `apps/desktop/src/lib/version.ts`, which is where the
 setters are and where the tests check them. A file that is added to the list
 of version files is a file that the release workflow writes into, so a new
 project has to be added there rather than left to be remembered.
+
+The version of the app is a plain semver version, and it is what every file
+name says. Three places take something else, and each of them has a reason:
+
+| Where | For `1.0.0-beta` | Why |
+|---|---|---|
+| `bundle.windows.wix.version` | `1.0.0.0` | WiX takes four numbers and no letters |
+| `bundle.macOS.bundleVersion` | `1.0.0` | Apple wants a plain number for the build version |
+| the Linux packages | `1.0.0~beta` | Debian and rpm read a dash as something else |
+
+The Windows and macOS numbers dropping the identifier is harmless. The MSI
+allows an upgrade from a package with the same version, so the finished
+release replaces the pre-release, and there is no updater yet, so nothing
+compares the macOS build versions.
+
+The Linux packages cannot have the dash in them at all, and the tilde is what
+makes them sort in the right order. See
+[Building a binary](#building-a-binary).
 
 ## The linters
 
@@ -215,19 +271,19 @@ Release. A tag with a dash in it is published as a pre-release.
 
 The tag is read by `.github/scripts/version-from-tag.sh`, which refuses a tag
 that does not name a version, and the release is created by
-`.github/scripts/create-release.sh`, which creates it once so that the three
-platform jobs upload into it rather than racing each other to create it.
+`.github/scripts/create-release.sh`, which creates it once so that the platform
+jobs upload into it rather than racing each other to create it.
 
 ```mermaid
 flowchart LR
     T["A tag: v1.0.0"] --> V["The version is read<br/>and checked"]
     V --> R["The release is created<br/>on GitHub"]
-    R --> W["The Windows, macOS<br/>and Linux jobs"]
+    R --> W["The Windows and macOS job<br/>and the Linux job"]
     W --> S["The tag's version is written<br/>into the tree"]
     S --> U["The installers are uploaded<br/>into the release"]
 ```
 
-The release is created once, before the three platform jobs, so that the
+The release is created once, before the platform jobs, so that the
 jobs upload into it rather than racing each other to create it. A re-run of
 a failed workflow adds to the release that is already there.
 
@@ -237,3 +293,34 @@ The script that does it is
 [.github/scripts/apply-tag-version.sh](../.github/scripts/apply-tag-version.sh),
 which reads the version out of the tag and puts it into every file that
 carries one. See [The version](#the-version) for where those files are.
+
+### What a pre-release tag builds
+
+A tag with a dash in it is a pre-release, and it builds slightly less than a
+release does:
+
+| | `v1.0.0` | `v1.0.0-beta` |
+|---|---|---|
+| Windows | MSI and NSIS installer | MSI and NSIS installer |
+| macOS | disk image and application | disk image and application |
+| Linux | Debian package, AppImage and rpm | Debian package and AppImage |
+
+The rpm is left out of a pre-release because its version has to be set while
+it is built, and the only version the bundler takes is the one in the
+configuration, which has to be a plain semver version.
+
+One thing is known to be imperfect: the macOS build version of a pre-release
+is the same as the one of the finished release, because Apple wants a plain
+number there. It does not matter yet, because there is no updater that
+compares them, and the version a person reads is the short one, which does
+carry the identifier.
+
+The Linux job is a job of its own rather than one leg of the matrix of
+platforms, because the Debian package has to be rewritten after it is built
+and before it is uploaded: the bundler puts the version of the app into the
+control file of the package, and Debian reads a pre-release identifier in
+that field as a revision that sorts after the finished release. The rewrite
+is done by
+[.github/scripts/fix-deb-version.sh](../.github/scripts/fix-deb-version.sh),
+and the upload by
+[.github/scripts/upload-release-files.sh](../.github/scripts/upload-release-files.sh).
