@@ -190,7 +190,7 @@ export const AI_TOOL_NAMES = [
   'read_section',
   'search',
   'propose_edit',
-  'set_style',
+  'propose_style',
   'render_preview',
 ] as const;
 

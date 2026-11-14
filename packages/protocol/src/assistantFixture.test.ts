@@ -11,7 +11,7 @@ import fixture from './fixtures/assistant.json';
  * it. A difference between the two shows up as a failing test here rather
  * than as a document that comes out wrong.
  *
- * The file is written by `apps/api/scripts/write_assistant_fixture.py`.
+ * The file is written by `apps/desktop/src-tauri/examples/write_assistant_fixture.rs`.
  */
 
 interface FixtureCase {

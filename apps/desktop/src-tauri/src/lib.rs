@@ -1,9 +1,14 @@
+mod ai_tools;
 mod assistant;
 mod config;
+mod diff;
 mod models_catalog;
 mod project;
 pub mod providers;
+mod render;
 
+#[cfg(test)]
+mod ai_tools_tests;
 #[cfg(test)]
 mod assistant_provider_tests;
 #[cfg(test)]
@@ -15,6 +20,8 @@ mod assistant_tests;
 #[cfg(test)]
 mod config_tests;
 #[cfg(test)]
+mod diff_tests;
+#[cfg(test)]
 mod models_catalog_tests;
 #[cfg(test)]
 mod project_tests;
@@ -25,10 +32,17 @@ mod providers_http_tests;
 #[cfg(test)]
 mod providers_tests;
 #[cfg(test)]
+mod render_tests;
+#[cfg(test)]
 mod test_support;
 
 /// The filesystem commands, exposed so they can be tested directly.
 pub mod testing {
+    pub use crate::ai_tools::{
+        Fixture, FixtureCase, ProposedEdit, Section, ToolCallResult, ToolContext, ToolSession,
+        build_fixture, find_sections, run_session, run_tool, tool_descriptions, tool_names,
+        write_assistant_fixture,
+    };
     pub use crate::assistant::{
         Agent, AssistantEvent, CancelFlag, ChatRequest, MAX_TOOL_ROUNDS, ProviderTest, run, run_in,
         test_provider_in,
@@ -39,6 +53,10 @@ pub mod testing {
         read_credentials_from, set_provider_key, set_provider_key_in, write_config,
         write_config_to, write_credentials_to,
     };
+    pub use crate::diff::{
+        DEFAULT_CONTEXT, DiffChange, DiffHunk, DiffLine, DiffLineKind, apply_changes, diff_hunks,
+        split_lines,
+    };
     pub use crate::project::{
         collect_project_binaries, create_project, export_binary_file, export_text_file,
         open_project, read_binary_file, save_project, write_project_file,
@@ -47,6 +65,11 @@ pub mod testing {
     pub use crate::providers::{
         ChatMessage, ContentPart, PendingCall, ProviderEndpoint, ProviderError, ProviderEvent,
         ProviderRequest, ProviderTurn, ToolCall, ToolDefinition, anthropic, openai, sse,
+    };
+    pub use crate::render::{
+        MAX_RENDERED_PAGES, OutlineEntry, PageConfig, PdfConfig, Project, ProjectAsset,
+        ProjectFile, ProjectFont, RenderOutline, RenderPage, RenderPages, RenderRequest,
+        RenderWarning, render_project, render_project_outline, render_project_pages,
     };
 }
 

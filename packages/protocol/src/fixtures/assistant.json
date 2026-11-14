@@ -48,8 +48,8 @@
       ]
     },
     {
-      "oldText": "# Title\n\nFirst paragraph.\n\nSecond paragraph.\n",
-      "newText": "# Title\n\nFirst paragraph, edited.\n\nSecond paragraph.\n",
+      "oldText": "= Title\n\nFirst paragraph.\n\nSecond paragraph.\n",
+      "newText": "= Title\n\nFirst paragraph, edited.\n\nSecond paragraph.\n",
       "hunks": [
         {
           "oldStart": 1,
@@ -59,7 +59,7 @@
           "lines": [
             {
               "kind": "context",
-              "text": "# Title",
+              "text": "= Title",
               "oldLine": 1,
               "newLine": 1
             },
@@ -113,7 +113,7 @@
     },
     {
       "oldText": "",
-      "newText": "# A new file\n\nWith a paragraph.\n",
+      "newText": "= A new file\n\nWith a paragraph.\n",
       "hunks": [
         {
           "oldStart": 1,
@@ -123,7 +123,7 @@
           "lines": [
             {
               "kind": "added",
-              "text": "# A new file",
+              "text": "= A new file",
               "oldLine": null,
               "newLine": 1
             },
@@ -145,7 +145,7 @@
               "oldStart": 1,
               "oldCount": 0,
               "newLines": [
-                "# A new file\n",
+                "= A new file\n",
                 "\n",
                 "With a paragraph.\n"
               ]
@@ -160,7 +160,7 @@
     "read_section",
     "search",
     "propose_edit",
-    "set_style",
+    "propose_style",
     "render_preview"
   ]
 }
