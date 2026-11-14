@@ -37,12 +37,11 @@ flowchart LR
     T["The tree"] --> F["lint-frontend.sh<br/>ESLint and Prettier"]
     T --> R["lint-rust.sh<br/>clippy and rustfmt"]
     T --> B["lint-backend.sh<br/>the lint target of the image"]
-    F --> H["The hook: before a push"]
-    R --> H
-    B --> H
     F --> C["The CI job: lint"]
     R --> C
     B --> C
+    T --> S["What changed?"]
+    S --> H["The hook: before a push"]
 ```
 
 ## Before a push
@@ -58,10 +57,78 @@ rules and not two.
 The hooks are installed by `bun install`, which runs the `prepare` script of
 the root manifest. A new contributor does not have to run anything extra.
 
+### Only the linters that the change reaches
+
+The hook does not run all three every time. It asks
+`scripts/lint-changed.ts` which linters the changes reach, and runs only
+those. A push that touched only the prose would otherwise pay for a Rust
+compile and a Docker image build, and a hook that is slow is a hook that
+people learn to push past.
+
+| Section | Lives in | Linted by |
+|---|---|---|
+| frontend | `apps/desktop/src`, `packages/protocol`, `scripts/`, and the configuration at the root | `lint-frontend.sh` |
+| rust | `apps/desktop/src-tauri/` | `lint-rust.sh` |
+| backend | `apps/api/` | `lint-backend.sh` |
+
+The rule is per section rather than per file: a whole linter runs or does
+not run, so the run on this machine is the same run the CI does for that
+section. The rules live in
+[apps/desktop/src/lib/changedLinters.ts](../apps/desktop/src/lib/changedLinters.ts),
+and the tests next to it check them one by one.
+
+To see what the hook would run, without pushing:
+
+```bash
+bun run lint:changed
+```
+
+It prints one linter name per line, and prints nothing when the change
+reaches no linter.
+
+### What counts as a change
+
+Three things are put together:
+
+- the commits that are not on the upstream yet,
+- the changes that are staged or modified in the working tree,
+- the files that are new and not ignored.
+
+The new files are in the list because a file that has never been committed is
+exactly the file that has not been linted yet.
+
+The changes are measured against the merge base of HEAD and the upstream of
+the branch, which is where the two lines parted. A branch that has no
+upstream falls back to `origin/master` and then to `origin/main`. When there
+is no such ref at all, every linter runs: not being able to tell what
+changed is not a reason to skip the lint.
+
+```mermaid
+flowchart TD
+    G["The changed files"] --> Q{"Which section?"}
+    Q -->|TypeScript| F["lint-frontend.sh"]
+    Q -->|Rust| R["lint-rust.sh"]
+    Q -->|Python| B["lint-backend.sh"]
+    Q -->|prose only| N["No linter runs"]
+    F --> P{"Did it pass?"}
+    R --> P
+    B --> P
+    P -->|no| X["The push is refused"]
+    P -->|yes| Y["The push may go"]
+```
+
+### A red lint stops the push
+
+A linter that finds something returns a non-zero code, the hook turns that
+into a refusal, and git refuses the push. The hook says that it refused it,
+so the reason the push stopped is on the screen of the person who pushed.
+
 The lint of the render service needs a Docker daemon. A machine without one
 still pushes: the CI lints the service on every push, so nothing is lost,
 only moved to the runner. The hook says that it skipped the service, because
-a silent skip reads like a lint that passed.
+a silent skip reads like a lint that passed. The daemon is only asked about
+when the service is among the linters that were selected, so a push that
+touches no Python does not wait for Docker to answer.
 
 A push that is deliberate and does not need the lint is pushed with:
 

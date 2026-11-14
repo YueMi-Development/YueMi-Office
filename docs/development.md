@@ -169,8 +169,9 @@ bun run lint          # ESLint and Prettier over the TypeScript side
 ```
 
 The CI runs all three in its `lint` job, and the same three run before a
-push, through the hook under [.husky](../.husky). See
-[docs/linting.md](linting.md) for the rules of each one, for what the
+push, through the hook under [.husky](../.husky). The hook runs only the
+linters whose section changed, and a linter that fails refuses the push.
+See [docs/linting.md](linting.md) for the rules of each one, for what the
 formatters are kept away from, and for how to push past the hook.
 
 ## CI

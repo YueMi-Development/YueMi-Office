@@ -9,6 +9,7 @@ import prettierConfig from '../../../../.prettierrc.json?raw';
 import prettierIgnore from '../../../../.prettierignore?raw';
 import packageJson from '../../../../package.json?raw';
 import prePush from '../../../../.husky/pre-push?raw';
+import lintChanged from '../../../../scripts/lint-changed.ts?raw';
 import lintBackend from '../../../../.github/scripts/lint-backend.sh?raw';
 import lintFrontend from '../../../../.github/scripts/lint-frontend.sh?raw';
 import lintRust from '../../../../.github/scripts/lint-rust.sh?raw';
@@ -270,9 +271,11 @@ describe('the hook that runs before a push', () => {
     // One set of lint rules and not two. A hook that ran a lint of its own
     // would be a lint that drifts away from the one the CI runs, and the
     // two would disagree about what a clean tree is.
-    for (const script of Object.keys(SCRIPTS)) {
-      expect(prePush).toContain(`.github/scripts/lint-${script}.sh`);
-    }
+    //
+    // The hook names the scripts through a variable, because it runs the
+    // ones that were selected. The three scripts it can reach are the
+    // three the workflow calls.
+    expect(prePush).toContain('sh ".github/scripts/lint-$name.sh"');
   });
 
   it('runs the scripts with a shell that is always there', () => {
@@ -281,7 +284,42 @@ describe('the hook that runs before a push', () => {
     // the person who pushes rather than on a runner. The scripts carry the
     // shell they need in their shebang.
     expect(prePush).not.toContain('bash .github/scripts');
-    expect(prePush).toContain('sh .github/scripts');
+    expect(prePush).toContain('sh ".github/scripts/lint-$name.sh"');
+  });
+
+  it('asks which linters the changes reach', () => {
+    // A hook that ran all three linters on every push would pay for a Rust
+    // compile and a Docker image build for a push that only touched prose.
+    expect(prePush).toContain('scripts/lint-changed.ts');
+  });
+
+  it('runs every linter when it cannot tell what changed', () => {
+    // Not being able to tell what changed is not a reason to skip the
+    // lint. A hook that decided nothing changed would let a broken push
+    // through, and it would do so silently.
+    expect(prePush).toContain('selection="all"');
+    expect(prePush).toContain('frontend rust backend');
+  });
+
+  it('refuses the push when a linter fails', () => {
+    // The refusal is the point of the hook. It is written in the hook
+    // rather than left to the exit code of the script, so that the reason
+    // the push was stopped is on the screen of the person who pushed.
+    expect(prePush).toContain('exit 1');
+    expect(prePush).toMatch(/The push was refused/);
+  });
+
+  it('asks about the Docker daemon only when the service was selected', () => {
+    // A push that touches no Python should not wait for Docker to answer.
+    expect(prePush).toMatch(/if \[ "\$linter" = "backend" \]/);
+  });
+
+  it('leaves the escape hatch to the runner', () => {
+    // A push that is deliberate and does not need the lint is pushed with
+    // HUSKY=0. The runner is what honours it, so the hook does not carry
+    // the check itself: a hook that honoured it would let a mistake
+    // through on the first push after the environment variable was set.
+    expect(prePush).not.toContain('HUSKY=0');
   });
 
   it('does not carry the shim that the next version of the runner drops', () => {
@@ -305,5 +343,29 @@ describe('the hook that runs before a push', () => {
     for (const workflow of [ci, release]) {
       expect(workflow).toContain('HUSKY: "0"');
     }
+  });
+});
+
+describe('the script that says what changed', () => {
+  it('asks git for the three parts of the changed set', () => {
+    // The commits that are not on the upstream, the changes that are not
+    // committed, and the files that are new. A file that has never been
+    // committed has to count, or a new file would never be linted before
+    // its first push.
+    expect(lintChanged).toContain("'diff', '--name-only'");
+    expect(lintChanged).toContain("'ls-files', '--others', '--exclude-standard'");
+  });
+
+  it('measures against the upstream of the branch', () => {
+    // The upstream is where this branch was published, and the merge base
+    // is where the two lines parted.
+    expect(lintChanged).toContain("'rev-parse', '--abbrev-ref', '@{u}'");
+    expect(lintChanged).toContain("'merge-base', 'HEAD'");
+  });
+
+  it('says everything when it cannot measure anything', () => {
+    // Not being able to tell what changed is not a reason to skip the
+    // lint. The safe reading is that everything changed.
+    expect(lintChanged).toMatch(/write\('all/);
   });
 });
