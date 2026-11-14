@@ -12,10 +12,10 @@ use std::net::TcpListener;
 use std::sync::{Arc, Mutex};
 use std::thread;
 
-/// A server that plays both the model provider and the render service.
+/// A server that plays the model provider.
 ///
-/// The two roles are told apart by the path of the request, which is how
-/// the real thing works as well.
+/// The roles it can play are told apart by the path of the request, which is
+/// how the real thing works as well.
 pub struct MockServer {
     /// The address the server is on.
     pub base_url: String,

@@ -3,10 +3,8 @@ import type { AppConfig, ProviderConfig, ProviderProtocol } from '@yuemi/protoco
 
 import { checkHealth } from '../../lib/api';
 import { makeProvider, testProvider } from '../../lib/appConfig';
-import { DEFAULT_SERVICE_URL, validateServiceUrl } from '../../lib/serviceUrl';
 import { reasonOf } from '../../lib/tauri';
 import { useConfigStore } from '../../state/configStore';
-import { useSettingsStore } from '../../state/settingsStore';
 
 interface SettingsDialogProps {
   onClose: () => void;
@@ -15,10 +13,9 @@ interface SettingsDialogProps {
 /**
  * The settings dialog.
  *
- * The render service is hosted for v1 (PRD section 11), so its address is a
- * setting rather than a constant in the bundle. The dialog also reports
- * whether the service answers, because a wrong address is the most common
- * reason for a document that will not preview.
+ * The renderer lives inside the app, so there is no address to configure
+ * here. The dialog still reports whether the renderer answers, because a
+ * broken installation shows up there first.
  *
  * The AI section holds the providers the assistant talks to. The keys are
  * written to the user's home folder by the shell, so the key itself never
@@ -33,16 +30,12 @@ const PROTOCOLS: { value: ProviderProtocol; label: string }[] = [
 ];
 
 export function SettingsDialog({ onClose }: SettingsDialogProps) {
-  const serviceUrl = useSettingsStore((state) => state.serviceUrl);
-  const setServiceUrl = useSettingsStore((state) => state.setServiceUrl);
-
   const config = useConfigStore((state) => state.config);
   const configError = useConfigStore((state) => state.error);
   const loadConfig = useConfigStore((state) => state.load);
   const saveConfig = useConfigStore((state) => state.save);
   const setKey = useConfigStore((state) => state.setKey);
 
-  const [draft, setDraft] = useState(serviceUrl);
   const [problem, setProblem] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
@@ -66,10 +59,6 @@ export function SettingsDialog({ onClose }: SettingsDialogProps) {
   const seeded = useRef(false);
 
   useEffect(() => {
-    setDraft(serviceUrl);
-  }, [serviceUrl]);
-
-  useEffect(() => {
     void loadConfig();
   }, [loadConfig]);
 
@@ -86,7 +75,7 @@ export function SettingsDialog({ onClose }: SettingsDialogProps) {
   }, [config]);
 
   /**
-   * Writes the settings: the address of the service and the providers.
+   * Writes the settings: the providers the assistant talks to.
    *
    * The key of a provider that was removed is cleared as part of the same
    * write, so a key does not stay behind for a provider that no longer
@@ -94,18 +83,11 @@ export function SettingsDialog({ onClose }: SettingsDialogProps) {
    * so closing the dialog without saving leaves the key where it is.
    */
   const handleSave = async () => {
-    const issue = validateServiceUrl(draft);
-    if (issue) {
-      setProblem(issue);
-      return;
-    }
     setProblem(null);
     setSaving(true);
     setStatus(null);
 
     try {
-      setServiceUrl(draft);
-
       // The keys of providers that are gone are cleared as part of the same
       // write. The list is taken before the write, because the write
       // replaces the configuration the comparison is made against.
@@ -137,23 +119,14 @@ export function SettingsDialog({ onClose }: SettingsDialogProps) {
   };
 
   const handleCheck = async () => {
-    const issue = validateServiceUrl(draft);
-    if (issue) {
-      setProblem(issue);
-      return;
-    }
-
     setProblem(null);
     setChecking(true);
     setStatus(null);
     try {
-      setServiceUrl(draft);
       const health = await checkHealth();
-      setStatus(
-        `The render service answered (WeasyPrint ${health.weasyprintVersion}).`,
-      );
+      setStatus(`The renderer answered (Typst ${health.typstVersion}).`);
     } catch (error) {
-      setStatus(`Could not reach the service: ${reasonOf(error, 'unknown error')}`);
+      setStatus(`The renderer did not answer: ${reasonOf(error, 'unknown error')}`);
     } finally {
       setChecking(false);
     }
@@ -254,18 +227,6 @@ export function SettingsDialog({ onClose }: SettingsDialogProps) {
         aria-modal="true"
       >
         <h2 className="template-picker-title">Settings</h2>
-
-        <label className="settings-field">
-          <span className="settings-label">Render service address</span>
-          <input
-            className="settings-input"
-            type="text"
-            value={draft}
-            spellCheck={false}
-            onChange={(event) => setDraft(event.target.value)}
-            placeholder={DEFAULT_SERVICE_URL}
-          />
-        </label>
 
         {problem && (
           <p className="settings-problem" role="alert">
@@ -517,7 +478,7 @@ export function SettingsDialog({ onClose }: SettingsDialogProps) {
             }}
             disabled={checking}
           >
-            {checking ? 'Checking…' : 'Test service'}
+            {checking ? 'Checking…' : 'Check renderer'}
           </button>
           <button type="button" onClick={() => void handleSave()} disabled={saving}>
             {saving ? 'Saving…' : 'Save'}

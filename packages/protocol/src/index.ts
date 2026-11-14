@@ -87,7 +87,7 @@ export interface ProjectFile {
   text: string;
 }
 
-/** A binary asset within a project, inlined so the service stays stateless. */
+/** A binary asset within a project, inlined so the renderer stays stateless. */
 export interface ProjectAsset {
   /** Path relative to the project root, using forward slashes. */
   path: string;
@@ -106,8 +106,8 @@ export interface ProjectFont {
   /**
    * The font family name as declared inside the font file.
    *
-   * The client leaves this empty and the service reads it from the font's
-   * name table, so the CSS author can use the family's real name.
+   * The client leaves this empty and the renderer reads it from the font's
+   * name table, so the theme can use the family's real name.
    */
   family?: string;
 }
@@ -168,7 +168,7 @@ export interface HealthResponse {
   rustVersion: string;
 }
 
-/** Error shape returned by the service for a failed render. */
+/** Error shape returned for a failed render. */
 export interface RenderError {
   error: string;
   details?: string;

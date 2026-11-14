@@ -22,8 +22,6 @@ import { isTauri } from './tauri';
 export interface RunOptions {
   /** The conversation so far, oldest first. */
   messages: ChatMessage[];
-  /** Where the render service is. */
-  serviceUrl: string;
   /** Which provider to use, when the user picked one. */
   providerId?: string;
   /** Which model to use, when the user picked one. */
@@ -52,7 +50,6 @@ async function buildRequest(options: RunOptions): Promise<ChatRequest> {
     files: Object.entries(projectState.files).map(([path, text]) => ({ path, text })),
     assets,
     fonts,
-    serviceUrl: options.serviceUrl,
     providerId: options.providerId,
     model: options.model,
     mode: options.mode,

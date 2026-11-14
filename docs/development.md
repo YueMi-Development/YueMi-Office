@@ -2,40 +2,7 @@
 
 How to run the app, how to build an installer, and what CI does.
 
-You need [Bun](https://bun.sh), Rust, and Python 3.10+.
-
-## The render service
-
-```bash
-cd apps/api
-python -m venv .venv
-. .venv/bin/activate
-pip install -e ".[dev]"
-uvicorn app.main:app --port 32100
-```
-
-WeasyPrint needs Pango and Cairo. On Linux, install the packages listed in
-[the CI workflow](../.github/workflows/ci.yml). On Windows, install the GTK3
-Runtime, or point `WEASYPRINT_DLL_DIRECTORIES` at a directory that has the
-Pango DLLs.
-
-### With Docker
-
-The render service image pins the WeasyPrint version and the system libraries
-the visual baselines were produced with:
-
-```bash
-cd apps/api
-docker compose up --build
-```
-
-Or build the image directly, from the root of the repository, because the
-build context is the repository root:
-
-```bash
-docker build -f apps/api/Dockerfile --target runtime -t yuemi-api .
-docker run --rm -p 32100:32100 yuemi-api
-```
+You need [Bun](https://bun.sh) and Rust.
 
 ## The desktop app
 
@@ -44,26 +11,29 @@ bun install
 bun run dev:desktop
 ```
 
-The app talks to the render service at `http://127.0.0.1:32100` by default.
-Change the address in the app's Settings dialog. The port is named once in
-`packages/protocol/src/index.ts` and once in `apps/api/app/service.py`; a test
-keeps the two in step.
+There is no service to start. The renderer is a Rust library inside the
+app, so the same process that shows the preview lays the document out for
+the export and for the pages the assistant is shown.
 
 ## Tests
 
 ```bash
-cd apps/api && pytest
 bun run test
 cd apps/desktop/src-tauri && cargo test
 ```
 
-The visual tests compare the rendered pages of the reference document against
+The visual check renders a reference document and compares the pages with
 the committed baselines. To regenerate them after a change to the layout
-engine that is meant to alter the output:
+that is meant to alter the output:
 
 ```bash
-cd apps/api && python scripts/render_reference.py --update
+.github/scripts/visual-check.sh write
 ```
+
+The baselines are PNG files under
+`apps/desktop/src-tauri/tests/visual/baseline/reference`. Typst rasterises
+with its own renderer, so the pages of the same document are the same on
+every operating system, and one set of baselines serves all three.
 
 ## Building a binary
 
@@ -151,9 +121,8 @@ itself before it runs the tests.
 
 ## The version
 
-The whole repository has one version. The desktop app and the render service
-are two parts of one product, they are released together from one tag, and
-they carry the same number.
+The whole repository has one version. It is released together from one tag,
+and every place that carries a version carries the same number.
 
 The version is declared in more than one place, because the toolchains do not
 agree on where they read it:
@@ -167,9 +136,6 @@ agree on where they read it:
 | The desktop app | `apps/desktop/src-tauri/Cargo.toml` | the version of the crate |
 | The desktop app | `apps/desktop/src-tauri/Cargo.lock` | the version of the crate, as cargo records it |
 | The repository | `bun.lock` | the versions of the workspace packages, as bun records them |
-| The render service | `apps/api/pyproject.toml` | the version of the package |
-| The render service | `apps/api/app/__init__.py` | `__version__` |
-| The render service | `apps/api/app/main.py` | the version of the FastAPI application |
 
 Two commands look after them:
 
@@ -214,28 +180,27 @@ makes them sort in the right order. See
 
 ## The linters
 
-The tree is written in three languages, and each of them has a linter that
+The tree is written in two languages, and each of them has a linter that
 comes with its own toolchain: ESLint and Prettier for TypeScript,
-`cargo clippy` and `cargo fmt` for Rust, and `ruff` for Python.
+`cargo clippy` and `cargo fmt` for Rust.
 
 ```bash
 bun run lint          # ESLint and Prettier over the TypeScript side
 .github/scripts/lint-rust.sh
-.github/scripts/lint-backend.sh
 ```
 
-The CI runs all three in its `lint` job, and the same three run before a
-push, through the hook under [.husky](../.husky). The hook runs only the
-linters whose section changed, and a linter that fails refuses the push.
-See [docs/linting.md](linting.md) for the rules of each one, for what the
+The CI runs both in its `lint` job, and the same two run before a push,
+through the hook under [.husky](../.husky). The hook runs only the linters
+whose section changed, and a linter that fails refuses the push. See
+[docs/linting.md](linting.md) for the rules of each one, for what the
 formatters are kept away from, and for how to push past the hook.
 
 ## CI
 
-GitHub Actions runs the linters, the backend tests, the frontend tests, a
-Rust test pass, a build on Windows, macOS and Linux, and a visual check that
-renders the reference document on all three operating systems and compares
-the pages. See [.github/workflows/ci.yml](../.github/workflows/ci.yml).
+GitHub Actions runs the linters, the frontend tests, a Rust test pass, a
+build on Windows, macOS and Linux, and a visual check that renders the
+reference document on all three operating systems and compares the pages.
+See [.github/workflows/ci.yml](../.github/workflows/ci.yml).
 
 The work the jobs do is in [.github/scripts](../.github/scripts), one script
 per job rather than a long step in the workflow file. A workflow is a list of
@@ -254,12 +219,6 @@ so a value pasted into a command line is quoted by the shell first: the
 location of the toolchain on a Windows runner lost its backslashes that
 way, and the loader was pointed at a folder that is not there. A test
 checks that rule for the whole workflow file too.
-
-The backend tests run inside the render image, because the visual baselines
-were produced by exactly that stack: the same Debian release, the same
-Pango, the same WeasyPrint. Running them against the runner's own libraries
-would compare the baselines with a slightly different engine, which is a
-difference in the environment rather than in the code.
 
 ## Releases
 

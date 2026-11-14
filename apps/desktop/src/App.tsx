@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { FileTree } from './features/files/FileTree';
-import { MarkdownEditor } from './features/editor/MarkdownEditor';
+import { TypstEditor } from './features/editor/TypstEditor';
 import { Outline } from './features/outline/Outline';
 import { PdfPreview } from './features/preview/PdfPreview';
 import { AssistantPanel } from './features/assistant/AssistantPanel';
@@ -13,9 +13,8 @@ import { WarningsPanel } from './features/warnings/WarningsPanel';
 import { useEditorStore } from './state/editorStore';
 import { usePreviewStore } from './state/previewStore';
 import { useProjectStore } from './state/projectStore';
-import { useSettingsStore } from './state/settingsStore';
 import { pickNewProjectFolder, pickSavePath } from './lib/dialog';
-import { exportFile, joinMarkdown, openProject } from './lib/files';
+import { exportFile, joinTypst, openProject } from './lib/files';
 import { parseProject } from './lib/project';
 
 export function App() {
@@ -43,7 +42,6 @@ export function App() {
   const { activePath, setActivePath } = useEditorStore();
   const { status, pdf, outline, pageCount, warnings, error, requestRender } =
     usePreviewStore();
-  const serviceUrl = useSettingsStore((state) => state.serviceUrl);
 
   // Autosave every 10 seconds, as required by PRD section 8.
   const autosaveRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -76,11 +74,11 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const activeFile = activePath ?? project.content[0] ?? null;
+  const activeFile = activePath ?? project.content[0] ?? project.theme ?? null;
 
   useEffect(() => {
     // The file is cleared when it is gone from the project, but a file that
-    // is not part of the document order — a stylesheet, say — stays open,
+    // is not part of the document order — the theme, say — stays open,
     // because a warning can point at one.
     if (activePath && !(activePath in files)) {
       setActivePath(null);
@@ -91,12 +89,6 @@ export function App() {
   useEffect(() => {
     requestRender();
   }, [project, files, requestRender]);
-
-  // A different service means a different renderer, so the preview has to be
-  // produced again.
-  useEffect(() => {
-    requestRender();
-  }, [serviceUrl, requestRender]);
 
   const handleTextChange = useCallback(
     (text: string) => {
@@ -122,15 +114,15 @@ export function App() {
     await exportFile(path, state.pdf);
   }, [project.title]);
 
-  const handleExportMarkdown = useCallback(async () => {
+  const handleExportTypst = useCallback(async () => {
     const state = useProjectStore.getState();
-    const path = await pickSavePath(`${state.project.title || 'document'}.md`, [
-      { name: 'Markdown', extensions: ['md'] },
+    const path = await pickSavePath(`${state.project.title || 'document'}.typ`, [
+      { name: 'Typst source', extensions: ['typ'] },
     ]);
     if (!path) {
       return;
     }
-    await exportFile(path, joinMarkdown(state.project, state.files));
+    await exportFile(path, joinTypst(state.project, state.files));
   }, []);
 
   const handleNewProject = useCallback(async (template: DocumentTemplate) => {
@@ -197,13 +189,6 @@ export function App() {
     [activeFile, files],
   );
 
-  const editorLanguage = useMemo<'markdown' | 'css'>(() => {
-    if (!activeFile) {
-      return 'markdown';
-    }
-    return activeFile.toLowerCase().endsWith('.css') ? 'css' : 'markdown';
-  }, [activeFile]);
-
   const handleOpenWarningFile = useCallback(
     (path: string) => {
       setActivePath(path);
@@ -265,16 +250,12 @@ export function App() {
           <button
             type="button"
             onClick={() => {
-              void handleExportMarkdown();
+              void handleExportTypst();
             }}
           >
-            Export Markdown
+            Export Typst
           </button>
-          <button
-            type="button"
-            onClick={() => setShowSettings(true)}
-            title={serviceUrl}
-          >
+          <button type="button" onClick={() => setShowSettings(true)}>
             Settings
           </button>
           <button type="button" onClick={() => setShowAssistant((shown) => !shown)}>
@@ -295,6 +276,7 @@ export function App() {
             <h2 className="sidebar-heading">Files</h2>
             <FileTree
               content={project.content}
+              theme={project.theme}
               activePath={activeFile}
               onSelect={setActivePath}
               onRemove={removeContentFile}
@@ -310,17 +292,16 @@ export function App() {
 
         <section className="app-editor">
           {activeFile ? (
-            <MarkdownEditor
+            <TypstEditor
               value={editorValue}
               onChange={handleTextChange}
               onCommit={commit}
-              language={editorLanguage}
             />
           ) : (
             <div className="editor-placeholder">
               <p>No file is open.</p>
               <p className="editor-placeholder-hint">
-                Add a Markdown file to the project to start writing.
+                Add a Typst file to the project to start writing.
               </p>
             </div>
           )}

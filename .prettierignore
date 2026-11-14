@@ -8,6 +8,11 @@ dist/
 target/
 bun.lock
 
+# The agent skills carry their own scripts and examples. They are read by
+# an agent rather than built by this repository, and their own format is
+# part of what they are.
+.agents/
+
 # The Rust side has its own formatter.
 apps/desktop/src-tauri/
 
@@ -16,9 +21,9 @@ apps/desktop/src-tauri/
 examples/
 
 # The other files in YAML are read by another program rather than by a
-# person: the compose file by Docker, the dependabot file by GitHub. A
-# formatter would change the quoting of their strings, and the tests that
-# read them would then look for a shape that the file no longer has.
+# person: the dependabot file and the workflows by GitHub. A formatter
+# would change the quoting of their strings, and the tests that read them
+# would then look for a shape that the file no longer has.
 *.yml
 *.yaml
 
@@ -27,10 +32,8 @@ examples/
 # the result would say nothing that the text did not already say.
 *.md
 docs/
-apps/api/tests/fixtures/
 
-# The generated files. They are written by a script of the service, and the
+# The generated files. They are written by a script of their own, and the
 # script writes them in its own shape, so a formatter here would only make
 # the next run of the script change them again.
 packages/protocol/src/fixtures/
-apps/api/tests/visual/baseline/

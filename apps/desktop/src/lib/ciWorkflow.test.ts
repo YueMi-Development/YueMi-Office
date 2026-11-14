@@ -172,7 +172,7 @@ describe('the workflow', () => {
           '    steps:',
           '      - name: Point the loader',
           '        shell: bash',
-          '        run: .github/scripts/point-libraries.sh windows ${{ steps.msys2.outputs.msys2-location }}',
+          '        run: .github/scripts/visual-check.sh ${{ matrix.target }}',
         ].join('\n'),
       ),
     );
@@ -210,8 +210,8 @@ describe('the workflow', () => {
           '      - name: Point the loader',
           '        shell: bash',
           '        env:',
-          '          MSYS2_LOCATION: ${{ steps.msys2.outputs.msys2-location }}',
-          '        run: .github/scripts/point-libraries.sh windows',
+          '          TARGET: ${{ matrix.target }}',
+          '        run: .github/scripts/visual-check.sh',
         ].join('\n'),
       ),
     );
@@ -219,19 +219,18 @@ describe('the workflow', () => {
     expect(broken).toEqual([]);
   });
 
-  it('gives the toolchain to the script through the environment', () => {
-    // The location of the toolchain has backslashes in it, and a command
-    // line eats them. The step that failed is named here so that putting
-    // the path back into the command is a failure with a message that
-    // says what is wrong.
+  it('gives the visual check a shell that can run the script', () => {
+    // The script under `.github/scripts` is a shell script, and a runner
+    // on Windows runs a step in PowerShell by default. The step is named
+    // here so that removing the shell from it is a failure with a message
+    // that says what is wrong.
     const visual = readJobs(ci).find((job) => job.name === 'visual');
-    const point = visual?.steps.find(
-      (step) => step.name === 'Point the loader at the libraries on Windows',
+    const compare = visual?.steps.find(
+      (step) => step.name === 'Compare the pages with the baselines',
     );
 
-    expect(point).toBeDefined();
-    expect(point?.command.join(' ')).not.toContain('${{');
-    expect(ci).toContain('MSYS2_LOCATION: ${{ steps.msys2.outputs.msys2-location }}');
+    expect(compare).toBeDefined();
+    expect(compare?.command.join(' ')).not.toContain('${{');
   });
 
   it('gives the lint job the libraries its Rust compile needs', () => {

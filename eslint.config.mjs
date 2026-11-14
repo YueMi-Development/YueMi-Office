@@ -21,6 +21,10 @@ export default tseslint.config(
       '**/dist/**',
       '**/target/**',
       '**/.venv/**',
+      // The agent skills carry their own scripts and examples. They are
+      // read by an agent rather than built by this repository, so they are
+      // outside the TypeScript build.
+      '.agents/**',
       'bun.lock',
       'apps/desktop/src-tauri',
       // The icons are generated from one picture, and the Rust tool that

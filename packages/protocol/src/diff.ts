@@ -3,7 +3,7 @@ import type { DiffChange, DiffHunk, ProposedEdit } from './index';
 /**
  * Putting proposed changes into a file.
  *
- * The changes the service sends say which lines they replace, counted from
+ * The changes the app sends say which lines they replace, counted from
  * the start of the file, so accepting part of a change is a matter of
  * applying only some of them.
  */
@@ -16,7 +16,7 @@ import type { DiffChange, DiffHunk, ProposedEdit } from './index';
  * newline simply has a last line without one, and an empty file has no
  * lines at all.
  *
- * Only a line feed ends a line, which is what the service counts too.
+ * Only a line feed ends a line, which is what the renderer counts too.
  */
 export function splitLines(text: string): string[] {
   if (!text) {

@@ -4,6 +4,7 @@ mod config;
 mod diff;
 mod models_catalog;
 mod project;
+mod project_folder;
 pub mod providers;
 mod render;
 
@@ -59,6 +60,7 @@ pub mod testing {
         collect_project_binaries, create_project, export_binary_file, export_text_file,
         open_project, read_binary_file, save_project, write_project_file,
     };
+    pub use crate::project_folder::load_project_folder;
     pub use crate::providers;
     pub use crate::providers::{
         ChatMessage, ContentPart, PendingCall, ProviderEndpoint, ProviderError, ProviderEvent,

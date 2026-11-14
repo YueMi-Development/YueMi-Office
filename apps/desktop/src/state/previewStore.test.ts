@@ -82,7 +82,7 @@ describe('usePreviewStore', () => {
   });
 
   it('records the error when a render fails', async () => {
-    vi.spyOn(api, 'renderProject').mockRejectedValue(new Error('service down'));
+    vi.spyOn(api, 'renderProject').mockRejectedValue(new Error('render failed'));
 
     usePreviewStore.getState().requestRender();
     vi.advanceTimersByTime(500);
@@ -90,7 +90,7 @@ describe('usePreviewStore', () => {
       expect(usePreviewStore.getState().status).toBe('error');
     });
 
-    expect(usePreviewStore.getState().error).toBe('service down');
+    expect(usePreviewStore.getState().error).toBe('render failed');
   });
 
   it('discards a stale response when a newer request was made', async () => {

@@ -26,14 +26,6 @@ describe('linterFor', () => {
     expect(linterFor('apps/desktop/src-tauri/tauri.conf.json')).toBe('rust');
   });
 
-  it('sends the render service to the backend linter', () => {
-    expect(linterFor('apps/api/app/main.py')).toBe('backend');
-  });
-
-  it('sends the manifest of the render service to the backend linter', () => {
-    expect(linterFor('apps/api/pyproject.toml')).toBe('backend');
-  });
-
   it('sends the TypeScript tree to the frontend linter', () => {
     expect(linterFor('apps/desktop/src/lib/changedLinters.ts')).toBe('frontend');
     expect(linterFor('packages/protocol/src/index.ts')).toBe('frontend');
@@ -57,14 +49,13 @@ describe('linterFor', () => {
     // A change to the script is a change to what the lint says.
     expect(linterFor('.github/scripts/lint-frontend.sh')).toBe('frontend');
     expect(linterFor('.github/scripts/lint-rust.sh')).toBe('rust');
-    expect(linterFor('.github/scripts/lint-backend.sh')).toBe('backend');
   });
 
   it('sends the prose to no linter', () => {
     // The prose is written to be read, and no linter reads it.
     expect(linterFor('docs/linting.md')).toBeNull();
     expect(linterFor('README.md')).toBeNull();
-    expect(linterFor('docs/PRD-markdown-document-studio.md')).toBeNull();
+    expect(linterFor('docs/PRD-typst-document-studio.md')).toBeNull();
   });
 
   it('sends the workflows to no linter', () => {
@@ -73,7 +64,7 @@ describe('linterFor', () => {
   });
 
   it('sends the example project to no linter', () => {
-    expect(linterFor('examples/sample/document.md')).toBeNull();
+    expect(linterFor('examples/sample/document.typ')).toBeNull();
   });
 
   it('sends a file without an extension to no linter', () => {
@@ -87,7 +78,7 @@ describe('linterFor', () => {
   });
 
   it('reads a path that starts with a dot slash', () => {
-    expect(linterFor('./apps/api/app/main.py')).toBe('backend');
+    expect(linterFor('./apps/desktop/src-tauri/Cargo.toml')).toBe('rust');
   });
 });
 
@@ -101,15 +92,15 @@ describe('lintersFor', () => {
   });
 
   it('says one linter when one section changed', () => {
-    expect(lintersFor(['apps/api/app/main.py'])).toEqual(['backend']);
+    expect(lintersFor(['apps/desktop/src-tauri/src/main.rs'])).toEqual(['rust']);
   });
 
   it('says the linters in a fixed order', () => {
     // The order the linters run in must not depend on the order the files
     // changed in, or two pushes of the same change would differ.
-    expect(lintersFor(['apps/api/app/main.py', 'apps/desktop/src/lib/app.ts'])).toEqual(
-      ['frontend', 'backend'],
-    );
+    expect(
+      lintersFor(['apps/desktop/src-tauri/src/main.rs', 'apps/desktop/src/lib/app.ts']),
+    ).toEqual(['frontend', 'rust']);
   });
 
   it('says a linter once however many of its files changed', () => {
@@ -124,15 +115,11 @@ describe('lintersFor', () => {
 
   it('says every linter that a wide change reaches', () => {
     expect(
-      lintersFor([
-        'apps/desktop/src/lib/app.ts',
-        'apps/desktop/src-tauri/src/main.rs',
-        'apps/api/app/main.py',
-      ]),
-    ).toEqual(['frontend', 'rust', 'backend']);
+      lintersFor(['apps/desktop/src/lib/app.ts', 'apps/desktop/src-tauri/src/main.rs']),
+    ).toEqual(['frontend', 'rust']);
   });
 
-  it('knows the three linters of the repository', () => {
-    expect(LINTER_NAMES).toEqual(['frontend', 'rust', 'backend']);
+  it('knows the two linters of the repository', () => {
+    expect(LINTER_NAMES).toEqual(['frontend', 'rust']);
   });
 });

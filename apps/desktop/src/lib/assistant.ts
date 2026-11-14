@@ -7,7 +7,7 @@ import { useProjectStore } from '../state/projectStore';
 /**
  * Running the assistant's tools against the current project.
  *
- * The service holds the project's files, and the app sends them along with
+ * The Rust side holds the project's files, and the app sends them along with
  * the calls. The changes the calls propose come back for the user to accept
  * or reject; nothing is written to the project until they do (PRD section 7).
  */

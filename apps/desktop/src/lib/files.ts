@@ -73,7 +73,7 @@ export async function collectProjectBinaries(
 export interface ProjectFileToWrite {
   /** Path relative to the project root, with forward slashes. */
   path: string;
-  /** Text contents, for Markdown and CSS files. */
+  /** Text contents, for Typst source and theme files. */
   text?: string;
   /** Base64 contents, for font and image files. */
   base64?: string;
@@ -127,9 +127,12 @@ export async function exportFile(
 }
 
 /**
- * Joins a project's content files into one Markdown document.
+ * Joins a project's content files into one Typst document.
+ *
+ * The result is a single file that renders the same way as the project, so
+ * it can be handed to someone who does not have the folder.
  */
-export function joinMarkdown(
+export function joinTypst(
   project: { content: string[] },
   files: Record<string, string>,
 ): string {

@@ -1,10 +1,10 @@
 /**
  * Which linter a changed file belongs to.
  *
- * The tree is written in three languages, and each of them has a linter.
- * Running all three on every push costs a Rust compile and a Docker image
- * build for a push that only touched prose, so the hook asks this file which
- * linters the change reaches.
+ * The tree is written in two languages, and each of them has a linter.
+ * Running both on every push costs a Rust compile for a push that only
+ * touched prose, so the hook asks this file which linters the change
+ * reaches.
  *
  * The rule is per section rather than per file: a whole linter runs or does
  * not run. That way the run on this machine is the same run the CI does for
@@ -16,27 +16,26 @@
  */
 
 /** The linters of the repository, by the language they lint. */
-export const LINTER_NAMES = ['frontend', 'rust', 'backend'] as const;
+export const LINTER_NAMES = ['frontend', 'rust'] as const;
 
 /** The name of one of the linters. */
 export type LinterName = (typeof LINTER_NAMES)[number];
 
 /**
- * The directories that hold the two languages that are not TypeScript.
+ * The directory that holds the language that is not TypeScript.
  *
- * They are looked for first, because a file in one of them can carry an
- * extension that would otherwise send it to the TypeScript linter: the
- * manifest of the desktop app is a JSON file that the Rust build reads.
+ * It is looked for first, because a file in it can carry an extension that
+ * would otherwise send it to the TypeScript linter: the manifest of the
+ * desktop app is a JSON file that the Rust build reads.
  */
 const RUST_ROOT = 'apps/desktop/src-tauri/';
-const BACKEND_ROOT = 'apps/api/';
 
 /**
  * The extensions the TypeScript linter reads.
  *
  * The list is the set of files ESLint and Prettier are pointed at, and it
- * does not include the Rust, Python or YAML files, because each of those
- * has a linter of its own.
+ * does not include the Rust or YAML files, because each of those has a
+ * linter of its own.
  */
 const FRONTEND_EXTENSIONS = [
   '.ts',
@@ -60,14 +59,10 @@ const FRONTEND_EXTENSIONS = [
 export function linterFor(path: string): LinterName | null {
   const normalized = path.replace(/\\/g, '/').replace(/^\.\//, '');
 
-  // The two directories win over the extension, because they hold files
-  // whose extension says nothing about the language they are written in.
+  // The directory wins over the extension, because it holds files whose
+  // extension says nothing about the language they are written in.
   if (normalized.startsWith(RUST_ROOT)) {
     return 'rust';
-  }
-
-  if (normalized.startsWith(BACKEND_ROOT)) {
-    return 'backend';
   }
 
   // The script that lints a section is part of that section: a change to

@@ -12,98 +12,12 @@ concurrency:
 
 env:
   BUN_VERSION: "1.3.14"
-  # The Python version every job uses. It is pinned so the render stack is
-  # the same everywhere.
-  PYTHON_VERSION: "3.12"
   # The hooks are for the machine of the person who pushes. A runner has
   # no push to guard, and installing them there would point the runner at
   # a directory of hooks that nothing runs.
   HUSKY: "0"
 
 jobs:
-  backend:
-    name: Backend tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Run the backend tests
-        run: .github/scripts/backend-tests.sh
-
-  visual:
-    name: Visual check on ${{ matrix.platform }}
-    runs-on: ${{ matrix.platform }}
-    strategy:
-      fail-fast: false
-      matrix:
-        platform: [ubuntu-latest, windows-latest, macos-latest]
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      # Pango is the layout engine behind WeasyPrint. It has to be installed
-      # the way each platform's documentation describes.
-      - name: Install Pango on Linux
-        if: runner.os == 'Linux'
-        run: .github/scripts/install-pango.sh linux
-
-      - name: Install Pango on macOS
-        if: runner.os == 'macOS'
-        run: .github/scripts/install-pango.sh macos
-
-      - name: Install Pango on Windows
-        if: runner.os == 'Windows'
-        id: msys2
-        uses: msys2/setup-msys2@v2
-        with:
-          msystem: UCRT64
-          update: true
-          install: mingw-w64-ucrt-x86_64-pango
-
-      # WeasyPrint loads Pango through CFFI, which needs to be told where
-      # the libraries are on the platforms that do not have a standard
-      # search path for them.
-      #
-      # Bash is asked for on purpose. A runner on Windows runs a step in
-      # PowerShell by default, and PowerShell cannot run a shell script.
-      - name: Point the loader at the libraries on Windows
-        if: runner.os == 'Windows'
-        shell: bash
-        # The path goes through the environment rather than through the
-        # command line. A path with backslashes pasted into a command line
-        # is read by the shell first, and the shell strips the backslashes
-        # out of it before the script ever sees it.
-        env:
-          MSYS2_LOCATION: ${{ steps.msys2.outputs.msys2-location }}
-        run: .github/scripts/point-libraries.sh windows
-
-      - name: Point the loader at the libraries on macOS
-        if: runner.os == 'macOS'
-        shell: bash
-        run: .github/scripts/point-libraries.sh macos
-
-      - name: Install dependencies
-        working-directory: apps/api
-        run: |
-          python -m pip install --upgrade pip
-          pip install ".[dev]"
-
-      # The pages are compared, not the PDF bytes. The bytes differ between
-      # operating systems because Pango writes its own metadata into the
-      # file, while the rendered pages are the same document.
-      #
-      # Bash is asked for on purpose. A runner on Windows runs a step in
-      # PowerShell by default, and PowerShell does not read a trailing
-      # backslash as a line continuation, so a command spread over several
-      # lines would not parse there.
-      - name: Compare the pages with the baselines
-        shell: bash
-        run: .github/scripts/visual-check.sh
-
   lint:
     name: Lint
     runs-on: ubuntu-latest
@@ -145,12 +59,6 @@ jobs:
       - name: Lint the Rust side
         shell: bash
         run: .github/scripts/lint-rust.sh
-
-      # The backend lint runs inside the render image, so it sees the same
-      # Python as the service that ships.
-      - name: Lint the render service
-        shell: bash
-        run: .github/scripts/lint-backend.sh
 
   frontend:
     name: Frontend tests
@@ -218,6 +126,52 @@ jobs:
         working-directory: apps/desktop/src-tauri
         run: cargo test
 
+  # The pages are compared, not the PDF bytes. The bytes differ between
+  # operating systems because the PDF writer puts its own metadata into
+  # the file, while the rendered pages are the same document.
+  #
+  # Typst rasterises with its own renderer rather than with the system's,
+  # so the pages of the same document are the same everywhere, and the
+  # comparison runs on every platform rather than on one.
+  visual:
+    name: Visual check on ${{ matrix.platform }}
+    runs-on: ${{ matrix.platform }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: .github/scripts/install-linux-deps.sh libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf xdg-utils
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri -> target
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Write the icons
+        run: bun run scripts/generate-icons.ts
+
+      # Bash is asked for on purpose. A runner on Windows runs a step in
+      # PowerShell by default, and PowerShell cannot run a shell script.
+      - name: Compare the pages with the baselines
+        shell: bash
+        run: .github/scripts/visual-check.sh
+
   build:
     name: Build ${{ matrix.platform }}
     runs-on: ${{ matrix.platform }}
@@ -255,20 +209,3 @@ jobs:
         with:
           projectPath: apps/desktop
           args: --no-bundle
-
-  render-image:
-    name: Render service image
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "${{ env.PYTHON_VERSION }}"
-
-      - name: Build the image
-        run: docker build -f apps/api/Dockerfile --target runtime -t yuemi-api:ci .
-
-      - name: Smoke test the render service
-        run: .github/scripts/smoke-test-service.sh yuemi-api:ci

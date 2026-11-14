@@ -1,24 +1,38 @@
-#!/usr/bin/env bash
+#!/usr/bin/env sh
 #
-# Render the reference document and compare the pages with the baselines.
+# Compare the rendered pages with the baselines.
 #
 #     visual-check.sh
+#     visual-check.sh write
 #
-# The pages are compared, not the PDF bytes. The bytes differ between
-# operating systems because Pango writes its own metadata into the file,
-# while the rendered pages are the same document.
+# The pages are compared, not the PDF bytes. The bytes carry the metadata
+# of the machine that wrote them, while the rendered pages are the same
+# document everywhere.
 #
-# The script is run from the repository root, and the pages are written to
-# a folder of their own so that they do not end up in the tree.
+# Typst rasterises with its own renderer rather than with the system's, so
+# the pages of the same document are the same on every operating system.
+# That is what makes a committed baseline worth having.
+#
+# The word `write` replaces the baselines with the pages that were just
+# rendered. It is used when the change to the document is intended, and
+# the new baselines are read before they are committed.
+#
+# The body is written in POSIX shell, so the hook that runs it before a
+# push can call it with `sh` on every platform.
 
-set -euo pipefail
+set -eu
 
-root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-pages="$root/apps/api/.tmp-pages"
+root="$(cd "$(dirname "$0")/../.." && pwd)"
+cd "$root"
 
-cd "$root/apps/api"
+mode="${1:-check}"
 
-python scripts/render_pages.py tests/fixtures/reference "$pages"
-python scripts/compare_pages.py \
-  tests/visual/baseline/reference "$pages" \
-  --tolerance 0.002
+# The icons are not in the repository. They are derived from one picture,
+# and the Rust side reads the icon of the window into the binary, so a
+# compile without them fails.
+bun run scripts/generate-icons.ts
+
+cd apps/desktop/src-tauri
+
+echo "== Rendering the reference document"
+cargo run --quiet --example visual_check -- "$mode"

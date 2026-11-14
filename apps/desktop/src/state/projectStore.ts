@@ -239,7 +239,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
     const files = { ...state.files };
     const content = [...state.project.content];
-    const styles = [...state.project.styles];
+    let theme = state.project.theme;
 
     for (const [path, text] of entries) {
       const normalized = normalizePath(path);
@@ -250,20 +250,25 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         continue;
       }
 
-      // A new Markdown file is part of the document and a new stylesheet is
-      // part of the cascade, so both are put in their place. Without this the
-      // file would exist but never be rendered.
+      // A new Typst file is part of the document, and a new theme file
+      // becomes the project's theme, so both are put in their place.
+      // Without this the file would exist but never be rendered.
       const lower = normalized.toLowerCase();
-      if (lower.endsWith('.md') && !content.includes(normalized)) {
+      if (!lower.endsWith('.typ')) {
+        continue;
+      }
+
+      const isTheme = lower === 'theme.typ' || lower.endsWith('/theme.typ');
+      if (isTheme) {
+        theme = normalized;
+      } else if (!content.includes(normalized)) {
         content.push(normalized);
-      } else if (lower.endsWith('.css') && !styles.includes(normalized)) {
-        styles.push(normalized);
       }
     }
 
     pendingSnapshot = null;
     set({
-      project: { ...state.project, content, styles },
+      project: { ...state.project, content, theme },
       files,
       dirty: true,
       ...pushUndo(state, snapshotOf(state)),

@@ -20,21 +20,6 @@ updates:
       cargo-minor-patch:
         update-types: ["minor", "patch"]
 
-  # Render service (Python)
-  - package-ecosystem: "pip"
-    directory: "/apps/api"
-    schedule:
-      interval: "weekly"
-    groups:
-      pip-minor-patch:
-        update-types: ["minor", "patch"]
-
-  # Render service Docker image
-  - package-ecosystem: "docker"
-    directory: "/apps/api"
-    schedule:
-      interval: "weekly"
-
   # GitHub Actions used in CI and release workflows
   - package-ecosystem: "github-actions"
     directory: "/"

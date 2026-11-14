@@ -7,7 +7,7 @@ const TOOLS = [
   'read_section',
   'search',
   'propose_edit',
-  'set_style',
+  'propose_style',
   'render_preview',
 ];
 

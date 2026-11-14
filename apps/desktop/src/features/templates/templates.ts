@@ -7,13 +7,13 @@ import templateContent from './content.json';
 /**
  * The documents a new project can start from.
  *
- * A template is an ordinary project: a `project.json`, some Markdown, some
- * CSS and the fonts it uses. Keeping it in that shape means a template
- * creates a folder the app can open straight away, with no import step and
- * nothing to convert later.
+ * A template is an ordinary project: a `project.json`, some Typst files, a
+ * theme file and the fonts it uses. Keeping it in that shape means a
+ * template creates a folder the app can open straight away, with no import
+ * step and nothing to convert later.
  *
  * The text of the files lives in `content.json` rather than in this module,
- * so the render service's tests can read the same files the app writes.
+ * so the tests can read the same files the app writes.
  */
 
 export interface TemplateFile {
@@ -39,7 +39,7 @@ export interface DocumentTemplate {
   description: string;
   /** The project file written into the new folder. */
   project: Project;
-  /** The Markdown and CSS files written into the new folder. */
+  /** The Typst and theme files written into the new folder. */
   files: TemplateFile[];
   /** The fonts copied into the new folder. */
   fonts: TemplateFont[];
@@ -70,15 +70,22 @@ function buildTemplate(id: string, definition: TemplateDefinition): DocumentTemp
     ([path, text]) => ({ path, text }),
   );
 
-  const content = files.map((file) => file.path).filter((path) => path.endsWith('.md'));
-  const styles = files.map((file) => file.path).filter((path) => path.endsWith('.css'));
+  // The theme is the file named `theme.typ`, either at the root of the
+  // project or in a folder of its own. Everything else that ends in
+  // `.typ` is part of the document.
+  const themePath =
+    files.find((file) => /(^|\/)theme\.typ$/.test(file.path))?.path ?? null;
+
+  const content = files
+    .map((file) => file.path)
+    .filter((path) => path.endsWith('.typ') && path !== themePath);
 
   const project: Project = {
     schemaVersion: PROJECT_SCHEMA_VERSION,
     title: definition.name,
     language: 'en',
     content,
-    styles,
+    theme: themePath,
     fonts: definition.fonts.map((font) => font.path),
     assetsDir: 'assets',
     page: { size: 'A4', orientation: 'portrait' },

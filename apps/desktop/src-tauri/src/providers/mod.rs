@@ -303,9 +303,8 @@ pub async fn send(
 /// It is built once and kept, because building one costs more than making a
 /// request does.
 ///
-/// It is also the client the render service is reached with, because a
-/// client built without the cryptography provider in place would fail, and
-/// the provider is the one that puts it there.
+/// The cryptography provider is put in place before the client is built,
+/// because a client built without it would fail.
 ///
 /// The client keeps no connection open between requests. A kept connection
 /// belongs to the runtime that opened it, and a run may happen on a

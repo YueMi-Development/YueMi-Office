@@ -8,16 +8,16 @@ are shown to the model, so it can see what it did rather than only being
 told.
 
 The model never writes a file. Every change goes through `propose_edit` or
-`set_style` and reaches the document only after the user accepts it. The
+`propose_style` and reaches the document only after the user accepts it. The
 model cannot reach outside the project folder and cannot run commands.
 
 Six tools are on offer: `list_sections`, `read_section`, `search`,
-`propose_edit`, `set_style` and `render_preview`.
+`propose_edit`, `propose_style` and `render_preview`.
 
 ```mermaid
 flowchart TD
     Q["The user's message"] --> P["The provider"]
-    P -->|"asked for a tool"| T["The render service runs the tool"]
+    P -->|"asked for a tool"| T["The Rust side runs the tool"]
     T -->|"what it produced"| P
     P -->|"a change that moves the layout"| R["The document is rendered"]
     R -->|"the pages as images"| P
@@ -46,9 +46,9 @@ layout change, and the end of the run.
 The run is in the shell because the key is. A key never travels into the
 webview, so the request that carries it cannot be made from there.
 
-The render service does the work the tools describe. The shell asks it
-what tools exist, runs the calls the model made against the project, and
-sends the answers back to the model.
+The tools run in the shell, in the same process as the renderer. The
+shell knows what tools exist, runs the calls the model made against the
+project, and sends the answers back to the model.
 
 ## Providers and keys
 
@@ -77,8 +77,8 @@ a half-written one that cannot be read.
 ## The settings dialog
 
 The settings dialog has one **Save** button, and it saves everything on it:
-the address of the render service, the providers, the provider that is
-active, the model, and whether the assistant is allowed to run. A key has its
+the providers, the provider that is active, the model, and whether the
+assistant is allowed to run. A key has its
 own button next to the field it is pasted into, and saving a key does not
 touch the rest of the form. Removing a provider and saving clears the key
 that belonged to it.

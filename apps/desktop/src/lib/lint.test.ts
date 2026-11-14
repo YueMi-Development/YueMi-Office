@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 
 import ci from '../../../../.github/workflows/ci.yml?raw';
 import release from '../../../../.github/workflows/release.yml?raw';
-import dockerfile from '../../../../apps/api/Dockerfile?raw';
 import eslintConfig from '../../../../eslint.config.mjs?raw';
 import gitattributes from '../../../../.gitattributes?raw';
 import prettierConfig from '../../../../.prettierrc.json?raw';
@@ -10,7 +9,6 @@ import prettierIgnore from '../../../../.prettierignore?raw';
 import packageJson from '../../../../package.json?raw';
 import prePush from '../../../../.husky/pre-push?raw';
 import lintChanged from '../../../../scripts/lint-changed.ts?raw';
-import lintBackend from '../../../../.github/scripts/lint-backend.sh?raw';
 import lintFrontend from '../../../../.github/scripts/lint-frontend.sh?raw';
 import lintRust from '../../../../.github/scripts/lint-rust.sh?raw';
 import { brokenSteps, readJobs } from './workflowScan';
@@ -18,7 +16,7 @@ import { brokenSteps, readJobs } from './workflowScan';
 /**
  * The linters of the repository.
  *
- * The tree is written in three languages, and each of them has a linter
+ * The tree is written in two languages, and each of them has a linter
  * that comes with its own toolchain. Nothing here is checked for its
  * formatting only: a rule that is switched off is a rule that is read
  * once and then ignored, and the test below says which rules are off and
@@ -40,7 +38,6 @@ import { brokenSteps, readJobs } from './workflowScan';
 /** The lint scripts, by the language they lint. */
 const SCRIPTS: Record<string, string> = {
   frontend: lintFrontend,
-  backend: lintBackend,
   rust: lintRust,
 };
 
@@ -170,24 +167,13 @@ describe('the linters', () => {
     expect(commands).toContain('libwebkit2gtk-4.1-dev');
   });
 
-  it('lint the three languages of the tree', () => {
+  it('lint the two languages of the tree', () => {
     // Each script says which tool it runs, so a script that stops running
     // its linter is a failure with a message that says what is wrong.
     expect(lintFrontend).toContain('eslint');
     expect(lintFrontend).toContain('prettier');
     expect(lintRust).toContain('cargo clippy');
     expect(lintRust).toContain('cargo fmt');
-  });
-
-  it('lint the render service inside the image it ships in', () => {
-    // The service is deployed as that image, so a lint that ran against
-    // another Python would report a different set of mistakes than the
-    // one that ships. The image has a target for it, and the target runs
-    // the linter of the service.
-    expect(lintBackend).toContain('--target lint');
-    expect(dockerfile).toContain('FROM base AS lint');
-    expect(dockerfile).toContain('ruff check');
-    expect(dockerfile).toContain('ruff format --check');
   });
 
   it('keep the warnings of the Rust linter as errors', () => {
@@ -251,18 +237,20 @@ describe('the linters', () => {
 
   it('leave the files another program reads alone', () => {
     // The YAML files are read by another program rather than by a person:
-    // the compose file by Docker, the dependabot file by GitHub. A
-    // formatter would change the quoting of their strings, and the tests
-    // that read them would then look for a shape that the file no longer
-    // has.
+    // the dependabot file and the workflows by GitHub. A formatter would
+    // change the quoting of their strings, and the tests that read them
+    // would then look for a shape that the file no longer has.
     //
-    // The generated files are written by a script of the service, and the
+    // The generated files are written by a script of their own, and the
     // script writes them in its own shape, so a formatter here would only
     // make the next run of the script change them again.
     expect(prettierIgnore).toContain('*.yml');
     expect(prettierIgnore).toContain('*.yaml');
     expect(prettierIgnore).toContain('packages/protocol/src/fixtures/');
-    expect(prettierIgnore).toContain('apps/api/tests/visual/baseline/');
+
+    // The Rust side has its own formatter, and the visual baselines are
+    // inside it.
+    expect(prettierIgnore).toContain('apps/desktop/src-tauri/');
   });
 });
 
@@ -286,8 +274,8 @@ describe('the hook that runs before a push', () => {
     // two would disagree about what a clean tree is.
     //
     // The hook names the scripts through a variable, because it runs the
-    // ones that were selected. The three scripts it can reach are the
-    // three the workflow calls.
+    // ones that were selected. The two scripts it can reach are the two
+    // the workflow calls.
     expect(prePush).toContain('sh ".github/scripts/lint-$name.sh"');
   });
 
@@ -301,8 +289,8 @@ describe('the hook that runs before a push', () => {
   });
 
   it('asks which linters the changes reach', () => {
-    // A hook that ran all three linters on every push would pay for a Rust
-    // compile and a Docker image build for a push that only touched prose.
+    // A hook that ran both linters on every push would pay for a Rust
+    // compile for a push that only touched prose.
     expect(prePush).toContain('scripts/lint-changed.ts');
   });
 
@@ -311,7 +299,7 @@ describe('the hook that runs before a push', () => {
     // lint. A hook that decided nothing changed would let a broken push
     // through, and it would do so silently.
     expect(prePush).toContain('selection="all"');
-    expect(prePush).toContain('frontend rust backend');
+    expect(prePush).toContain('frontend rust');
   });
 
   it('refuses the push when a linter fails', () => {
@@ -320,11 +308,6 @@ describe('the hook that runs before a push', () => {
     // the push was stopped is on the screen of the person who pushed.
     expect(prePush).toContain('exit 1');
     expect(prePush).toMatch(/The push was refused/);
-  });
-
-  it('asks about the Docker daemon only when the service was selected', () => {
-    // A push that touches no Python should not wait for Docker to answer.
-    expect(prePush).toMatch(/if \[ "\$linter" = "backend" \]/);
   });
 
   it('leaves the escape hatch to the runner', () => {

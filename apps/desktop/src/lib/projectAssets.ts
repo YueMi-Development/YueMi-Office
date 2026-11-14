@@ -6,7 +6,7 @@ import { isTauri } from './tauri';
 /**
  * Loading the fonts and assets a project needs for a render.
  *
- * The render service never touches the user's disk, so every binary file a
+ * The renderer never touches the user's disk, so every binary file a
  * document refers to travels with the request. Fonts are named explicitly in
  * `project.json`, which is what makes a document render the same way on
  * every machine.
@@ -43,7 +43,7 @@ export async function loadProjectBinaries(
     };
   } catch {
     // A missing font or asset must not stop the preview from rendering; the
-    // service reports it as a warning instead.
+    // renderer reports it as a warning instead.
     return { fonts: [], assets: [] };
   }
 }

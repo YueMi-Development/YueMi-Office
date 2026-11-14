@@ -15,7 +15,6 @@ import { reasonOf } from '../../lib/tauri';
 import { useAssistantStore } from '../../state/assistantStore';
 import { useChatStore, usageOf } from '../../state/chatStore';
 import { useConfigStore, providerInUse } from '../../state/configStore';
-import { useSettingsStore } from '../../state/settingsStore';
 
 /**
  * The chat with the assistant.
@@ -46,8 +45,6 @@ export function ChatPanel() {
 
   const config = useConfigStore((state) => state.config);
   const loadConfig = useConfigStore((state) => state.load);
-
-  const serviceUrl = useSettingsStore((state) => state.serviceUrl);
 
   const [draft, setDraft] = useState('');
   // The window is stored together with the model it belongs to, so that a
@@ -127,7 +124,6 @@ export function ChatPanel() {
     try {
       await runAssistant({
         messages: conversation,
-        serviceUrl,
         providerId: provider?.id,
         model: provider?.model,
         mode: useChatStore.getState().mode,
@@ -169,7 +165,6 @@ export function ChatPanel() {
     addUserMessage,
     beginRun,
     config,
-    serviceUrl,
     setPending,
     setToolCalls,
     handleEvent,

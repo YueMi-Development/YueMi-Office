@@ -91,7 +91,7 @@ pub struct DiffHunk {
 /// lines at all.
 ///
 /// Only a line feed ends a line, so the count of lines is the same in the
-/// app, in the service and in the shared protocol.
+/// app, in the renderer and in the shared protocol.
 pub fn split_lines(text: &str) -> Vec<String> {
     if text.is_empty() {
         return Vec::new();

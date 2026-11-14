@@ -16,7 +16,7 @@ export function createEmptyProject(title = 'Untitled'): Project {
     title,
     language: 'en',
     content: [],
-    styles: ['styles/main.css'],
+    theme: null,
     fonts: [],
     assetsDir: 'assets',
     page: { size: 'A4', orientation: 'portrait' },
@@ -71,14 +71,10 @@ export function validateProject(value: unknown): ProjectValidationIssue[] {
     });
   }
 
-  if (!Array.isArray(project.styles)) {
-    issues.push({ path: 'styles', message: 'Must be an array of file paths.' });
-  } else {
-    project.styles.forEach((entry, index) => {
-      if (typeof entry !== 'string' || entry.length === 0) {
-        issues.push({ path: `styles[${index}]`, message: 'Must be a file path.' });
-      }
-    });
+  if (project.theme !== undefined && project.theme !== null) {
+    if (typeof project.theme !== 'string' || project.theme.length === 0) {
+      issues.push({ path: 'theme', message: 'Must be a file path.' });
+    }
   }
 
   if (project.fonts !== undefined) {
@@ -132,7 +128,7 @@ function isOrientation(value: unknown): value is Orientation {
 /**
  * Parses a `project.json` file, filling in defaults for anything missing.
  *
- * A missing file is not an error: a folder with only Markdown and CSS is a
+ * A missing file is not an error: a folder with only Typst files is a
  * valid project.
  */
 export function parseProject(text: string): {
@@ -166,6 +162,7 @@ export function parseProject(text: string): {
         page: { ...fallback.page, ...(partial.page ?? {}) },
         pdf: { ...fallback.pdf, ...(partial.pdf ?? {}) },
         fonts: partial.fonts ?? fallback.fonts,
+        theme: partial.theme ?? null,
       },
       issues,
     };
@@ -189,6 +186,7 @@ export function upgradeProject(project: Project): Project {
     ...project,
     schemaVersion: PROJECT_SCHEMA_VERSION,
     fonts: project.fonts ?? [],
+    theme: project.theme ?? null,
   };
 }
 

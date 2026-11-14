@@ -1,10 +1,22 @@
 {
-  "schemaVersion": 1,
-  "title": "Welcome to YueMi",
+  "schemaVersion": 3,
+  "title": "Welcome to YueMi Office",
   "language": "en",
-  "content": ["content/01-welcome.md", "content/02-layout.md"],
-  "styles": ["styles/main.css"],
+  "content": [
+    "content/01-welcome.typ",
+    "content/02-layout.typ"
+  ],
+  "theme": "theme.typ",
+  "fonts": [
+    "fonts/inter-400.woff2",
+    "fonts/inter-700.woff2"
+  ],
   "assetsDir": "assets",
-  "page": { "size": "A4", "orientation": "portrait" },
-  "pdf": { "variant": null }
+  "page": {
+    "size": "A4",
+    "orientation": "portrait"
+  },
+  "pdf": {
+    "variant": null
+  }
 }

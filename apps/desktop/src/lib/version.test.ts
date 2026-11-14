@@ -7,9 +7,6 @@ import tauriConfig from '../../../../apps/desktop/src-tauri/tauri.conf.json?raw'
 import cargoToml from '../../../../apps/desktop/src-tauri/Cargo.toml?raw';
 import cargoLock from '../../../../apps/desktop/src-tauri/Cargo.lock?raw';
 import bunLock from '../../../../bun.lock?raw';
-import apiPyproject from '../../../../apps/api/pyproject.toml?raw';
-import apiInit from '../../../../apps/api/app/__init__.py?raw';
-import apiMain from '../../../../apps/api/app/main.py?raw';
 import {
   applyVersion,
   isPrereleaseTag,
@@ -20,10 +17,7 @@ import {
   setBunLockVersion,
   setCargoLockVersion,
   setCargoVersion,
-  setFastApiVersion,
   setPackageVersion,
-  setPyprojectVersion,
-  setPythonVersion,
   setTauriVersion,
   versionFromTag,
   versionInFile,
@@ -52,9 +46,6 @@ function treeFiles(): VersionFiles {
     cargoToml,
     cargoLock,
     bunLock,
-    apiPyproject,
-    apiInit,
-    apiMain,
   };
 }
 
@@ -199,91 +190,10 @@ describe('writing the version into the files', () => {
     expect(JSON.parse(updated.tauriConfig).version).toBe('1.0.0-beta');
     expect(updated.cargoToml).toContain('version = "1.0.0-beta"');
     expect(updated.cargoLock).toContain('version = "1.0.0-beta"');
-    expect(updated.apiPyproject).toContain('version = "1.0.0-beta"');
-    expect(updated.apiInit).toContain('__version__ = "1.0.0-beta"');
-    expect(updated.apiMain).toContain('version="1.0.0-beta"');
   });
 
   it('refuses a version that is not one', () => {
     expect(() => applyVersion(treeFiles(), '1.0')).toThrow(/Not a version/);
-  });
-});
-
-describe('writing the version into the render service', () => {
-  it('changes the version of a pyproject.toml', () => {
-    const contents = setPyprojectVersion(
-      [
-        '[build-system]',
-        'requires = ["setuptools>=68"]',
-        '',
-        '[project]',
-        'name = "yuemi-api"',
-        'version = "0.1.0"',
-        'dependencies = [',
-        '  "weasyprint==70.0",',
-        ']',
-      ].join('\n'),
-      '1.0.0',
-    );
-
-    expect(contents).toContain('version = "1.0.0"');
-    expect(contents).toContain('name = "yuemi-api"');
-  });
-
-  it('leaves the pinned dependencies of a pyproject.toml alone', () => {
-    // Some of the dependencies are pinned exactly, because they decide
-    // the bytes of the PDF. A rewrite that did not stop at the table
-    // would unpin them.
-    const contents = setPyprojectVersion(
-      [
-        '[project]',
-        'version = "0.1.0"',
-        'dependencies = [',
-        '  "weasyprint==70.0",',
-        ']',
-      ].join('\n'),
-      '1.0.0',
-    );
-
-    expect(contents).toContain('"weasyprint==70.0"');
-  });
-
-  it('changes the __version__ of a module', () => {
-    const contents = setPythonVersion(
-      ['__version__ = "0.1.0"', '', 'OTHER = "not the version"'].join('\n'),
-      '1.0.0',
-    );
-
-    expect(contents).toContain('__version__ = "1.0.0"');
-    expect(contents).toContain('OTHER = "not the version"');
-  });
-
-  it('refuses a module that has no __version__', () => {
-    expect(() => setPythonVersion('OTHER = "1.0.0"', '1.0.0')).toThrow(
-      /no __version__/,
-    );
-  });
-
-  it('changes the version of the FastAPI application', () => {
-    const contents = setFastApiVersion(
-      [
-        'app = FastAPI(',
-        '    title="yuemi Render Service",',
-        '    version="0.1.0",',
-        '    description="Renders projects.",',
-        ')',
-      ].join('\n'),
-      '1.0.0',
-    );
-
-    expect(contents).toContain('version="1.0.0"');
-    expect(contents).toContain('title="yuemi Render Service"');
-  });
-
-  it('refuses a file that has no FastAPI application', () => {
-    expect(() => setFastApiVersion('app = 1', '1.0.0')).toThrow(
-      /no FastAPI application/,
-    );
   });
 });
 
@@ -420,9 +330,8 @@ describe('the version in the tree', () => {
   });
 
   it('is the version every project of the tree declares', () => {
-    // The render service is a separate project with a version of its
-    // own, and it is released together with the desktop app, so it
-    // carries the same number.
+    // The tree holds more than one version, and the release page shows
+    // one of them, so they all have to be the same number.
     const versions = versionsInFiles(treeFiles());
 
     for (const version of Object.values(versions)) {
@@ -436,16 +345,13 @@ describe('the version in the tree', () => {
     expect(versionInFile('rootPackage', files.rootPackage)).toBe('0.1.0');
     expect(versionInFile('cargoToml', files.cargoToml)).toBe('0.1.0');
     expect(versionInFile('cargoLock', files.cargoLock)).toBe('0.1.0');
-    expect(versionInFile('apiPyproject', files.apiPyproject)).toBe('0.1.0');
-    expect(versionInFile('apiInit', files.apiInit)).toBe('0.1.0');
-    expect(versionInFile('apiMain', files.apiMain)).toBe('0.1.0');
   });
 
   it('is null when a file has no version in it', () => {
     // A file that was written wrongly is reported rather than skipped,
     // because a skipped file is a file that ships the wrong number.
-    expect(versionInFile('apiInit', 'OTHER = "1.0.0"')).toBeNull();
-    expect(versionInFile('apiMain', 'app = 1')).toBeNull();
+    expect(versionInFile('rootPackage', '{"name": "x"}')).toBeNull();
+    expect(versionInFile('cargoToml', '[package]\nname = "app"\n')).toBeNull();
     expect(versionInFile('cargoLock', '[[package]]\nname = "log"\n')).toBeNull();
   });
 });

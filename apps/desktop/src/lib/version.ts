@@ -10,8 +10,6 @@
  * - `Cargo.toml` is what cargo reads.
  * - the `package.json` files are what bun reads, and the lockfile records
  *   their versions too.
- * - the render service is a Python package, so its version is in a
- *   `pyproject.toml` and in the two places the service itself reports it.
  *
  * Two of the bundle formats want a version that is not the semver one.
  * The Windows installer is built by WiX, whose version has four numbers
@@ -30,9 +28,6 @@ export const VERSION_FILES = {
   cargoToml: 'apps/desktop/src-tauri/Cargo.toml',
   cargoLock: 'apps/desktop/src-tauri/Cargo.lock',
   bunLock: 'bun.lock',
-  apiPyproject: 'apps/api/pyproject.toml',
-  apiInit: 'apps/api/app/__init__.py',
-  apiMain: 'apps/api/app/main.py',
 } as const;
 
 /** Which of the version files this is. */
@@ -55,9 +50,6 @@ export const VERSION_PROJECTS: Record<VersionFileKey, string> = {
   cargoToml: 'the desktop app',
   cargoLock: 'the desktop app',
   bunLock: 'the repository',
-  apiPyproject: 'the render service',
-  apiInit: 'the render service',
-  apiMain: 'the render service',
 };
 
 /**
@@ -241,18 +233,6 @@ export function setCargoVersion(contents: string, version: string): string {
 }
 
 /**
- * Writes a version into a `pyproject.toml`.
- *
- * Only the version of the project itself is changed, the way the Cargo
- * manifest is left alone outside its own table. The dependencies have
- * versions of their own, and some of them are pinned exactly, so a
- * rewrite that did not stop at the table would unpin them.
- */
-export function setPyprojectVersion(contents: string, version: string): string {
-  return setTableVersion(contents, '[project]', version);
-}
-
-/**
  * Writes a version into the version line of a table.
  *
  * The table is found by its header, and the line is found inside it, so
@@ -277,55 +257,6 @@ function setTableVersion(contents: string, table: string, version: string): stri
   }
 
   throw new Error(`The ${table} table has no version.`);
-}
-
-/**
- * Writes a version into a Python module's `__version__`.
- *
- * The name is looked for rather than a line, because a module may hold
- * other assignments and they are not the version.
- */
-export function setPythonVersion(contents: string, version: string): string {
-  const pattern = /^(__version__\s*=\s*)["'][^"']*["']/m;
-
-  if (!pattern.test(contents)) {
-    throw new Error('The module has no __version__.');
-  }
-
-  return contents.replace(pattern, `$1"${version}"`);
-}
-
-/**
- * Writes a version into the `FastAPI(...)` call of the service.
- *
- * The call is found first and the version is looked for inside it, so
- * that another version further down the file is not touched.
- */
-export function setFastApiVersion(contents: string, version: string): string {
-  const start = contents.indexOf('FastAPI(');
-
-  if (start === -1) {
-    throw new Error('The service has no FastAPI application.');
-  }
-
-  const end = contents.indexOf('\n)', start);
-
-  if (end === -1) {
-    throw new Error('The FastAPI application is not closed.');
-  }
-
-  const call = contents.slice(start, end);
-  const pattern = /(version\s*=\s*)["'][^"']*["']/;
-
-  if (!pattern.test(call)) {
-    throw new Error('The FastAPI application has no version.');
-  }
-
-  return (
-    contents.slice(0, start) +
-    call.replace(pattern, `$1"${version}"`) +
-    contents.slice(end)
-  );
 }
 
 /**
@@ -458,9 +389,6 @@ export function applyVersion(files: VersionFiles, version: string): VersionFiles
     cargoToml: setCargoVersion(files.cargoToml, version),
     cargoLock: setCargoLockVersion(files.cargoLock, version),
     bunLock: setBunLockVersion(files.bunLock, version),
-    apiPyproject: setPyprojectVersion(files.apiPyproject, version),
-    apiInit: setPythonVersion(files.apiInit, version),
-    apiMain: setFastApiVersion(files.apiMain, version),
   };
 }
 
@@ -477,8 +405,6 @@ export function versionInFile(key: VersionFileKey, contents: string): string | n
       return tableVersion(contents, '[package]');
     case 'cargoLock':
       return lockVersion(contents);
-    case 'apiPyproject':
-      return tableVersion(contents, '[project]');
     case 'bunLock': {
       const versions = workspaceVersions(contents);
 
@@ -489,23 +415,6 @@ export function versionInFile(key: VersionFileKey, contents: string): string | n
       // The workspace packages carry one version between them. If they
       // do not, the lockfile is a lockfile that has to be written again.
       return new Set(versions).size === 1 ? versions[0] : null;
-    }
-    case 'apiInit': {
-      const match = /^__version__\s*=\s*["']([^"']*)["']/m.exec(contents);
-
-      return match ? match[1] : null;
-    }
-    case 'apiMain': {
-      const start = contents.indexOf('FastAPI(');
-      const end = start === -1 ? -1 : contents.indexOf('\n)', start);
-
-      if (start === -1 || end === -1) {
-        return null;
-      }
-
-      const match = /version\s*=\s*["']([^"']*)["']/.exec(contents.slice(start, end));
-
-      return match ? match[1] : null;
     }
     default: {
       const parsed = JSON.parse(contents) as Record<string, unknown>;

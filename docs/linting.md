@@ -1,20 +1,18 @@
 # The linters
 
-How the three languages of the repository are linted, and why each one has
+How the two languages of the repository are linted, and why each one has
 the linter it has.
 
-The tree is written in three languages, and each of them has a linter that
+The tree is written in two languages, and each of them has a linter that
 comes with its own toolchain.
 
 | Language | Linter | Formatter | Where the rules live |
 |---|---|---|---|
 | TypeScript | ESLint | Prettier | `eslint.config.mjs`, `.prettierrc.json` |
 | Rust | `cargo clippy` | `cargo fmt` | the toolchain's own defaults |
-| Python | `ruff check` | `ruff format` | `apps/api/pyproject.toml` |
 
-Nothing has to be installed for the Rust one, and the Python one runs
-inside the image the service ships in, so it sees the same Python as the
-service itself.
+Nothing has to be installed for the Rust one: Clippy and rustfmt come with
+the Rust toolchain.
 
 ## Running them
 
@@ -22,31 +20,28 @@ service itself.
 bun run lint          # ESLint and Prettier over the TypeScript side
 bun run format        # Prettier writes the changes back
 
-# The other two are run through the scripts, so the same command runs
+# The Rust one is run through the script, so the same command runs
 # here and in the CI.
 .github/scripts/lint-rust.sh
-.github/scripts/lint-backend.sh
 ```
 
-The scripts live in [.github/scripts](../.github/scripts) and the CI runs all
-three in its `lint` job. A lint that only runs on the machine of the person
-who wrote the code is a lint that is skipped on the day it matters.
+The scripts live in [.github/scripts](../.github/scripts) and the CI runs both
+in its `lint` job. A lint that only runs on the machine of the person who
+wrote the code is a lint that is skipped on the day it matters.
 
 ```mermaid
 flowchart LR
     T["The tree"] --> F["lint-frontend.sh<br/>ESLint and Prettier"]
     T --> R["lint-rust.sh<br/>clippy and rustfmt"]
-    T --> B["lint-backend.sh<br/>the lint target of the image"]
     F --> C["The CI job: lint"]
     R --> C
-    B --> C
     T --> S["What changed?"]
     S --> H["The hook: before a push"]
 ```
 
 ## Before a push
 
-The same three linters run before a push, through the hook under
+The same two linters run before a push, through the hook under
 [.husky](../.husky). The CI only speaks after the branch is already on the
 server, so a mistake found here arrives while it is still in the working
 tree.
@@ -59,17 +54,15 @@ the root manifest. A new contributor does not have to run anything extra.
 
 ### Only the linters that the change reaches
 
-The hook does not run all three every time. It asks
-`scripts/lint-changed.ts` which linters the changes reach, and runs only
-those. A push that touched only the prose would otherwise pay for a Rust
-compile and a Docker image build, and a hook that is slow is a hook that
-people learn to push past.
+The hook does not run both every time. It asks `scripts/lint-changed.ts`
+which linters the changes reach, and runs only those. A push that touched
+only the prose would otherwise pay for a Rust compile, and a hook that is
+slow is a hook that people learn to push past.
 
 | Section | Lives in | Linted by |
 |---|---|---|
 | frontend | `apps/desktop/src`, `packages/protocol`, `scripts/`, and the configuration at the root | `lint-frontend.sh` |
 | rust | `apps/desktop/src-tauri/` | `lint-rust.sh` |
-| backend | `apps/api/` | `lint-backend.sh` |
 
 The rule is per section rather than per file: a whole linter runs or does
 not run, so the run on this machine is the same run the CI does for that
@@ -108,11 +101,9 @@ flowchart TD
     G["The changed files"] --> Q{"Which section?"}
     Q -->|TypeScript| F["lint-frontend.sh"]
     Q -->|Rust| R["lint-rust.sh"]
-    Q -->|Python| B["lint-backend.sh"]
     Q -->|prose only| N["No linter runs"]
     F --> P{"Did it pass?"}
     R --> P
-    B --> P
     P -->|no| X["The push is refused"]
     P -->|yes| Y["The push may go"]
 ```
@@ -122,13 +113,6 @@ flowchart TD
 A linter that finds something returns a non-zero code, the hook turns that
 into a refusal, and git refuses the push. The hook says that it refused it,
 so the reason the push stopped is on the screen of the person who pushed.
-
-The lint of the render service needs a Docker daemon. A machine without one
-still pushes: the CI lints the service on every push, so nothing is lost,
-only moved to the runner. The hook says that it skipped the service, because
-a silent skip reads like a lint that passed. The daemon is only asked about
-when the service is among the linters that were selected, so a push that
-touches no Python does not wait for Docker to answer.
 
 A push that is deliberate and does not need the lint is pushed with:
 
@@ -157,19 +141,22 @@ silenced rather than fixed, so `apps/desktop/src/lib/lint.test.ts` checks
 that every rule that is off carries its reason.
 
 Prettier formats the TypeScript, the CSS and the JSON. It does not touch the
-prose, the generated files, the YAML or the Rust side:
+prose, the generated files, the YAML, the Rust side or the agent skills:
 
 - The prose is written to be read, and the way it is wrapped is part of how
   it reads. A formatter would reflow the PRD and the documentation, and the
   result would say nothing that the text did not already say.
-- The generated files are written by a script of the service, and the script
-  writes them in its own shape, so a formatter here would only make the next
-  run of the script change them again.
+- The generated files are written by a script of their own, and the script
+  writes them in its own shape, so a formatter here would only make the
+  next run of the script change them again.
 - The YAML files are read by another program rather than by a person: the
-  compose file by Docker, the dependabot file by GitHub. A formatter would
-  change the quoting of their strings, and the tests that read them would
-  then look for a shape that the file no longer has.
+  dependabot file and the workflows by GitHub. A formatter would change
+  the quoting of their strings, and the tests that read them would then
+  look for a shape that the file no longer has.
 - The Rust side has its own formatter.
+- The agent skills under `.agents/` carry scripts and examples that are read
+  by an agent rather than built by this repository, and their own format is
+  part of what they are.
 
 ## The Rust side
 
@@ -182,21 +169,3 @@ linter that is read once and then ignored.
 The lint writes the icons before it compiles. The Rust side of the app reads
 the icon of the window into the binary, so a compile without the icons
 fails.
-
-## The render service
-
-The lint of the service runs inside the render image, because that image is
-the stack the service is deployed on and the one the visual baselines were
-made with. A lint that ran against a different Python would report a
-different set of mistakes than the one that ships.
-
-The image has a `lint` target for it, and that target runs `ruff check` and
-`ruff format --check`. The rules live in `apps/api/pyproject.toml`, next to
-the dependencies they apply to, so the tree of the service carries its own
-rules.
-
-The set of rules is the errors of flake8 — the mistakes that break the
-program — together with the import order and the modernisation of the
-annotations. The blind exception is not in the set: the renderer and the
-warning collector have to survive a document that is damaged, and the places
-that catch it say so where they do it.

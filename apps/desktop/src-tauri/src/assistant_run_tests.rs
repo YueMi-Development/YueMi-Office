@@ -365,14 +365,12 @@ async fn a_run_with_the_assistant_turned_off_sends_nothing() {
     );
 
     // The document never left the machine, because nothing was asked of the
-    // model and nothing was asked of the service.
+    // model. The tools run in the app, so there is nowhere else a request
+    // could have gone.
     assert!(
-        server.bodies_of("/chat/completions").is_empty(),
-        "the model was asked"
-    );
-    assert!(
-        server.bodies_of("/v1/ai/tools").is_empty(),
-        "the service was asked"
+        server.requests().is_empty(),
+        "something was asked: {:?}",
+        server.requests()
     );
 }
 

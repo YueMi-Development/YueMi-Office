@@ -4,6 +4,8 @@ import { basename } from '../../lib/project';
 
 export interface FileTreeProps {
   content: string[];
+  /** The project's theme file, shown apart from the document's own files. */
+  theme?: string | null;
   activePath: string | null;
   onSelect: (path: string) => void;
   onRemove?: (path: string) => void;
@@ -12,6 +14,7 @@ export interface FileTreeProps {
 
 export function FileTree({
   content,
+  theme = null,
   activePath,
   onSelect,
   onRemove,
@@ -27,7 +30,7 @@ export function FileTree({
     [content],
   );
 
-  if (files.length === 0) {
+  if (files.length === 0 && !theme) {
     return <div className="file-tree-empty">No content files yet.</div>;
   }
 
@@ -77,6 +80,20 @@ export function FileTree({
           )}
         </li>
       ))}
+
+      {theme && (
+        <li className="file-tree-item file-tree-theme">
+          <button
+            type="button"
+            className={`file-tree-button${theme === activePath ? ' is-active' : ''}`}
+            onClick={() => onSelect(theme)}
+            title={theme}
+          >
+            {basename(theme)}
+          </button>
+          <span className="file-tree-badge">theme</span>
+        </li>
+      )}
     </ul>
   );
 }

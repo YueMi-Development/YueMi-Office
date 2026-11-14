@@ -1,62 +1,67 @@
 # YueMi Office
 
-A desktop app for writing and laying out print-ready documents in Markdown
-with CSS. An AI assistant will work on the project the way a coding agent
-works on a repository: it reads the source, proposes edits as reviewable
-diffs, and checks the rendered result.
+A desktop app for writing and laying out print-ready documents in
+[Typst](https://typst.app). An AI assistant works on the project the way a
+coding agent works on a repository: it reads the source, proposes edits as
+reviewable diffs, and checks the rendered result.
 
-This repository is at **M4 (AI chat)**: the project format, the editor, the
-render pipeline, the PDF preview, export, templates, bundled fonts, render
-warnings, visual regression tests, the assistant's tool layer with a
-reviewable diff for every change it proposes, and the chat itself — the
-agent loop, the streaming answer, and the rendered pages shown back to the
-model after a change that moves the layout.
-
-See [docs/PRD-markdown-document-studio.md](docs/PRD-markdown-document-studio.md)
+See [PRD Files](docs/PRD-typst-document-studio.md)
 for the full product requirements.
+
+## Why Typst
+
+Typst is a markup language for typesetting, like LaTeX but with the
+syntax of a modern one. It replaces Markdown plus CSS, and it is a better
+fit for a document studio for three reasons:
+
+- **The layout is part of the document.** Typst has page geometry, headers
+  and footers, tables, figures and precise margins built in. CSS in a
+  print context is a layer of emulation on top of a browser engine that
+  was never asked to lay out pages.
+- **The output is the same everywhere.** Typst lays out and rasterises
+  with its own engine, so the same document gives the same pages on
+  Windows, macOS and Linux. A committed visual baseline is worth
+  something.
+- **An agent can read it.** The source is a small, regular language with
+  explicit functions, so a model can propose a change to it and the change
+  can be applied as a diff.
 
 ## Running it
 
-You need [Bun](https://bun.sh), Rust, and Python 3.10+.
+You need [Bun](https://bun.sh) and Rust.
 
 ```bash
-# The render service
-cd apps/api
-python -m venv .venv
-. .venv/bin/activate
-pip install -e ".[dev]"
-uvicorn app.main:app --port 32100
-
-# The desktop app, in another terminal
 bun install
 bun run dev:desktop
 ```
 
-The app talks to the render service at `http://127.0.0.1:32100` by default,
-and the address can be changed in the app's Settings dialog.
-
-WeasyPrint needs Pango and Cairo. On Linux, install the packages listed in
-[the CI workflow](.github/workflows/ci.yml). On Windows, install the GTK3
-Runtime, or point `WEASYPRINT_DLL_DIRECTORIES` at a directory that has the
-Pango DLLs.
+There is no service to start. The renderer is a Rust library inside the
+app: the same code that lays out the document for the preview lays it out
+for the export and for the pages the assistant is shown.
 
 ## Tests
 
 ```bash
-cd apps/api && pytest
 bun run test
 cd apps/desktop/src-tauri && cargo test
+```
+
+The visual check renders a reference document and compares the pages with
+the committed baselines:
+
+```bash
+.github/scripts/visual-check.sh
 ```
 
 ## Documentation
 
 | Document | What it covers |
 |---|---|
-| [docs/architecture.md](docs/architecture.md) | How the parts fit together, the project format, the render service's endpoints |
+| [docs/architecture.md](docs/architecture.md) | How the parts fit together, the project format, how the renderer works |
 | [docs/assistant.md](docs/assistant.md) | The agent loop, the tools, the providers, the keys, the settings dialog |
 | [docs/development.md](docs/development.md) | Running it, building an installer, where the version is declared, what CI and the release workflow do |
-| [docs/linting.md](docs/linting.md) | The linters of the three languages, the rules of each one, what the formatters are kept away from, and the hook that runs only the linters a change reaches before a push |
-| [docs/PRD-markdown-document-studio.md](docs/PRD-markdown-document-studio.md) | The product requirements |
+| [docs/linting.md](docs/linting.md) | The linters of the two languages, the rules of each one, what the formatters are kept away from, and the hook that runs only the linters a change reaches before a push |
+| [docs/PRD-typst-document-studio.md](docs/PRD-typst-document-studio.md) | The product requirements |
 
 ## Status
 

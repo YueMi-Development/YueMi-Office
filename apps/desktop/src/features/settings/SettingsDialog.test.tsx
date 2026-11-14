@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AppConfig, AppConfigView, ProviderConfig } from '@yuemi/protocol';
 
 import { useConfigStore } from '../../state/configStore';
-import { useSettingsStore } from '../../state/settingsStore';
 import { SettingsDialog } from './SettingsDialog';
 
 /**
@@ -11,8 +10,8 @@ import { SettingsDialog } from './SettingsDialog';
  *
  * The dialog is where the settings that were not written are lost, so what
  * is checked here is what happens to the user's edits: an edit must survive
- * saving a key, the Save button must write the providers as well as the
- * address of the service, and a failure must say why.
+ * saving a key, the Save button must write the providers, and a failure must
+ * say why.
  *
  * The shell is replaced by a small store of its own, so the dialog can be
  * driven the way the real app drives it.
@@ -68,10 +67,6 @@ function provider(id: string, name: string): ProviderConfig {
   };
 }
 
-/**
- * The address of the service is stored in the browser's storage, and the
- * browser's storage is what the test keeps between the cases.
- */
 function reset(): void {
   shell = {
     providers: [
@@ -90,7 +85,6 @@ function reset(): void {
 
   globalThis.localStorage?.clear();
   useConfigStore.setState({ config: null, loaded: false, error: null });
-  useSettingsStore.setState({ serviceUrl: 'http://127.0.0.1:32100' });
 
   invoke.mockImplementation(async (command: string, args?: Record<string, unknown>) => {
     if (command === 'load_app_config') {

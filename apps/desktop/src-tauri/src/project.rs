@@ -42,7 +42,7 @@ pub struct OpenProjectResult {
 }
 
 /// Extensions treated as project text files.
-const TEXT_EXTENSIONS: &[&str] = &["md", "markdown", "css", "json", "txt", "yaml", "yml"];
+const TEXT_EXTENSIONS: &[&str] = &["typ", "md", "markdown", "css", "json", "txt", "yaml", "yml"];
 
 /// Extensions treated as project binary assets, which are inlined into a
 /// render request rather than edited in the app.

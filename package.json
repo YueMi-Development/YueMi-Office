@@ -2,7 +2,7 @@
   "name": "yuemi-office",
   "private": true,
   "version": "0.1.0",
-  "description": "AI-assisted Markdown document studio",
+  "description": "AI-assisted Typst document studio",
   "workspaces": [
     "apps/desktop",
     "packages/*"
