@@ -8,7 +8,7 @@
 use std::time::Duration;
 
 use crate::config::{AppConfig, ProviderConfig, ProviderProtocol};
-use crate::test_support::{MockServer, SESSION, TOOLS};
+use crate::test_support::MockServer;
 use crate::testing::{ProviderTest, set_provider_key_in, test_provider_in, write_config_to};
 
 use tempfile::TempDir;
@@ -18,7 +18,7 @@ const READY: &str = "data: {\"choices\":[{\"delta\":{\"content\":\"ready\"}}]}\n
 
 /// The server that answers with a provider saying it is ready.
 fn ready_server() -> MockServer {
-    MockServer::start(vec![READY], TOOLS, SESSION)
+    MockServer::start(vec![READY])
 }
 
 /// A provider that talks to the given server.
@@ -213,7 +213,7 @@ async fn a_provider_without_an_address_says_so() {
 async fn a_provider_that_never_answers_is_reported_as_a_timeout() {
     // The server takes longer than the test is willing to wait, so the
     // provider is given up on rather than waited for for ever.
-    let server = MockServer::start_slowly(vec![READY], Duration::from_secs(30), TOOLS, SESSION);
+    let server = MockServer::start_slowly(vec![READY], Duration::from_secs(30));
     let directory = settings(vec![provider(&server.base_url)]);
 
     let answer = test_provider_in(

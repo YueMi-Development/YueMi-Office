@@ -1,9 +1,11 @@
-//! A server that stands in for the model provider and the render service.
+//! A server that stands in for the model provider.
 //!
 //! The tests use it to have the other end of a conversation without a
-//! provider account and without the service running: the requests are
-//! recorded, so a test can see what was sent, and the answers are given, so
-//! a test can see what comes back.
+//! provider account: the requests are recorded, so a test can see what was
+//! sent, and the answers are given, so a test can see what comes back.
+//!
+//! The tools the assistant may call live in the app itself now, so the
+//! server has only one role to play.
 
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::TcpListener;
@@ -26,11 +28,10 @@ pub struct MockServer {
 impl MockServer {
     /// Starts a server.
     ///
-    /// The provider answers with the given turns, one per request, and the
-    /// service answers with the given tools and the given session.
-    pub fn start(turns: Vec<&str>, tools: &'static str, session: &'static str) -> Self {
+    /// The provider answers with the given turns, one per request.
+    pub fn start(turns: Vec<&str>) -> Self {
         let turns = turns.iter().map(|turn| turn.to_string()).collect();
-        Self::serve(turns, false, tools, session)
+        Self::serve(turns, false, None)
     }
 
     /// Starts a server that answers with the same turn every time.
@@ -38,8 +39,8 @@ impl MockServer {
     /// The run loop goes on asking for tools as long as the model asks for
     /// them, so a test that needs the loop to keep going needs a server that
     /// never stops answering with a call.
-    pub fn start_always_calling(turn: &str, tools: &'static str, session: &'static str) -> Self {
-        Self::serve(vec![turn.to_string()], true, tools, session)
+    pub fn start_always_calling(turn: &str) -> Self {
+        Self::serve(vec![turn.to_string()], true, None)
     }
 
     /// Starts a server that takes its time before it answers.
@@ -47,27 +48,20 @@ impl MockServer {
     /// A run that is stopped while the model is still thinking needs the
     /// answer to be slow, otherwise the run is over before the test can stop
     /// it.
-    pub fn start_slowly(
-        turns: Vec<&str>,
-        delay: std::time::Duration,
-        tools: &'static str,
-        session: &'static str,
-    ) -> Self {
+    pub fn start_slowly(turns: Vec<&str>, delay: std::time::Duration) -> Self {
         let turns = turns.iter().map(|turn| turn.to_string()).collect();
-        Self::serve_with_delay(turns, false, tools, session, Some(delay))
+        Self::serve_with_delay(turns, false, Some(delay))
     }
 
     /// Starts the server that answers the requests.
-    fn serve(turns: Vec<String>, repeat: bool, tools: &'static str, session: &'static str) -> Self {
-        Self::serve_with_delay(turns, repeat, tools, session, None)
+    fn serve(turns: Vec<String>, repeat: bool, delay: Option<std::time::Duration>) -> Self {
+        Self::serve_with_delay(turns, repeat, delay)
     }
 
     /// Starts the server that answers the requests, taking its time.
     fn serve_with_delay(
         turns: Vec<String>,
         repeat: bool,
-        tools: &'static str,
-        session: &'static str,
         delay: Option<std::time::Duration>,
     ) -> Self {
         let listener = TcpListener::bind("127.0.0.1:0").expect("a port to bind");
@@ -77,8 +71,6 @@ impl MockServer {
 
         let recorded = Arc::clone(&requests);
         let recorded_heads = Arc::clone(&heads);
-        let tools = tools.to_string();
-        let session = session.to_string();
 
         thread::spawn(move || {
             let mut turn_index = 0usize;
@@ -108,10 +100,6 @@ impl MockServer {
                         turn
                     };
                     sse(&turn)
-                } else if path.ends_with("/v1/ai/tools") {
-                    json_response(200, &tools)
-                } else if path.ends_with("/v1/ai/session") {
-                    json_response(200, &session)
                 } else {
                     json_response(404, "{}")
                 };
@@ -232,7 +220,10 @@ pub fn asking_for_a_tool() -> String {
                     "id": "call_1",
                     "function": {
                         "name": "read_section",
-                        "arguments": serde_json::json!({ "path": "a.md" }).to_string()
+                        "arguments": serde_json::json!({
+                        "path": "a.typ",
+                        "heading": "The title"
+                    }).to_string()
                     }
                 }]
             }
@@ -241,57 +232,3 @@ pub fn asking_for_a_tool() -> String {
 
     format!("data: {frame}\n\n")
 }
-
-/// The tools the mock service offers.
-pub const TOOLS: &str = r#"[
-  {
-    "name": "read_section",
-    "description": "Read a section of a file.",
-    "parameters": {
-      "type": "object",
-      "properties": { "path": { "type": "string" } },
-      "required": ["path"]
-    }
-  }
-]"#;
-
-/// The tools the mock service offers when a test needs one that changes the
-/// document as well as one that reads it.
-///
-/// The chat mode only offers the tools that read, so a test of that mode
-/// needs a service that offers more than that.
-pub const TOOLS_WITH_A_CHANGE: &str = r#"[
-  {
-    "name": "read_section",
-    "description": "Read a section of a file.",
-    "parameters": {
-      "type": "object",
-      "properties": { "path": { "type": "string" } },
-      "required": ["path"]
-    }
-  },
-  {
-    "name": "propose_edit",
-    "description": "Propose a change to a file.",
-    "parameters": {
-      "type": "object",
-      "properties": { "path": { "type": "string" } },
-      "required": ["path"]
-    }
-  }
-]"#;
-
-/// The answer the mock service gives when a tool is run.
-pub const SESSION: &str = r#"{
-  "id": "session-1",
-  "calls": [
-    {
-      "id": "call_1",
-      "name": "read_section",
-      "arguments": { "path": "a.md" },
-      "ok": true,
-      "result": { "text": "The title of the document." }
-    }
-  ],
-  "edits": []
-}"#;

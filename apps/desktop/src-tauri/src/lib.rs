@@ -14,8 +14,6 @@ mod assistant_provider_tests;
 #[cfg(test)]
 mod assistant_run_tests;
 #[cfg(test)]
-mod assistant_service_tests;
-#[cfg(test)]
 mod assistant_tests;
 #[cfg(test)]
 mod config_tests;
@@ -101,6 +99,12 @@ pub fn run() {
             config::command_save_app_config,
             config::command_set_provider_key,
             config::command_config_directory,
+            render::command_render_project,
+            render::command_render_project_pages,
+            render::command_render_project_outline,
+            render::command_render_health,
+            ai_tools::command_list_ai_tools,
+            ai_tools::command_run_ai_session,
             assistant::command_run_assistant,
             assistant::command_cancel_assistant,
             assistant::command_test_provider,

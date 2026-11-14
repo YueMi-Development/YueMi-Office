@@ -878,6 +878,39 @@ pub struct ToolSession {
     pub edits: Vec<ProposedEdit>,
 }
 
+// The command wrappers the webview calls. The logic lives in the plain
+// functions above so it can be tested without a Tauri runtime.
+
+/// Lists the tools the assistant may call.
+///
+/// The app sends this to the model provider, so the assistant is told what
+/// it may do rather than what the user typed.
+#[tauri::command(rename = "list_ai_tools")]
+pub fn command_list_ai_tools() -> Vec<ToolDefinition> {
+    tool_descriptions()
+}
+
+/// Runs a session of tool calls against a project.
+///
+/// The calls run on the project's own files, with no access to the user's
+/// disk. The changes the calls propose come back for the user to accept or
+/// reject.
+///
+/// A session can render the document, which takes a moment, so the work is
+/// put on a blocking thread rather than freezing the window.
+#[tauri::command(rename = "run_ai_session")]
+pub async fn command_run_ai_session(
+    project: Project,
+    files: Vec<ProjectFile>,
+    assets: Vec<ProjectAsset>,
+    fonts: Vec<ProjectFont>,
+    calls: Vec<crate::providers::ToolCall>,
+) -> Result<ToolSession, String> {
+    tokio::task::spawn_blocking(move || run_session(project, files, assets, fonts, &calls))
+        .await
+        .map_err(|error| format!("The tools did not run: {error}"))
+}
+
 /// Runs the calls of a session and collects what they produced.
 ///
 /// A call that fails does not stop the session: the answer is recorded with

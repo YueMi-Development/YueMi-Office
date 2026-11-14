@@ -39,7 +39,7 @@ futures-util = "0.3"
 dirs = "7"
 # The timer is used to stop a provider that never answers from leaving the
 # settings dialog waiting for ever.
-tokio = { version = "1", features = ["time"] }
+tokio = { version = "1", features = ["time", "rt"] }
 typst = "0.15.1"
 typst-layout = "0.15.1"
 typst-pdf = "0.15.1"

@@ -1,41 +1,14 @@
 /**
- * Shared contract between the desktop app and the render service.
+ * Shared contract between the desktop app and the Rust core.
  *
- * The render service is stateless: it receives a whole project and returns a
- * rendered PDF. Keeping the request fully self-describing means the service
- * never touches the user's disk, which is the boundary the AI assistant must
- * respect later (PRD section 7).
+ * The core is in-process: the app hands it a whole project and gets a
+ * rendered PDF back. Keeping the request fully self-describing means the
+ * renderer never touches the user's disk, which is the boundary the AI
+ * assistant must respect later (PRD section 7).
  */
 
 /** Current version of the on-disk project format. */
-export const PROJECT_SCHEMA_VERSION = 2;
-
-/**
- * The port the render service listens on.
- *
- * It is here rather than in the app's own code because the service, the
- * image that runs it and the app that calls it all have to agree on it.
- *
- * The port is chosen to be out of the way. 8000 is the first port every
- * Python web framework is taught to use, so it is the first port anything
- * else on a developer's machine takes, and a service that cannot start
- * because something else is already listening is a bad first impression.
- *
- * The port sits in the 32000 band, which is above the ports that software
- * actually listens on by default and below the range the operating system
- * hands out to short-lived connections. The upper end of the band is the
- * important part: Windows and macOS hand out ephemeral ports from 49152
- * and Linux from 32768, so a service listening there is never handed a
- * port that is already in use, and the service never has one taken away
- * from under it.
- *
- * The port is also unregistered and unused by the tools a document studio
- * is developed alongside. That is worth checking rather than assuming:
- * 8123 looks equally free in the IANA registry, but it is the default
- * port of Home Assistant, which is a de facto standard the registry does
- * not know about.
- */
-export const SERVICE_PORT = 32100;
+export const PROJECT_SCHEMA_VERSION = 3;
 
 export {
   applyChanges,
@@ -45,7 +18,7 @@ export {
   splitLines,
 } from './diff';
 
-/** Page sizes WeasyPrint understands. */
+/** Page sizes Typst understands. */
 export const PAGE_SIZES = [
   'A0',
   'A1',
@@ -74,10 +47,10 @@ export type PdfVariant =
 /**
  * The `project.json` file that marks a folder as a document project.
  *
- * `content` and `styles` are explicit ordered lists rather than directory
- * globs: file order must not depend on the filesystem, otherwise the same
- * project would render differently on different operating systems and break
- * the cross-platform consistency guarantee (PRD section 8).
+ * `content` is an explicit ordered list rather than a directory glob: file
+ * order must not depend on the filesystem, otherwise the same project would
+ * render differently on different operating systems and break the
+ * cross-platform consistency guarantee (PRD section 8).
  */
 export interface Project {
   schemaVersion: number;
@@ -85,8 +58,14 @@ export interface Project {
   language: string;
   /** Content file paths relative to the project root, in document order. */
   content: string[];
-  /** Stylesheet paths relative to the project root, in cascade order. */
-  styles: string[];
+  /**
+   * The theme file, relative to the project root.
+   *
+   * The theme is a Typst file that exports a `theme` function. It is the
+   * project's stylesheet: it sets the fonts, the heading styles and the
+   * page furniture.
+   */
+  theme: string | null;
   /**
    * Font files bundled with the project, relative to the project root.
    *
@@ -101,7 +80,7 @@ export interface Project {
   pdf: { variant: PdfVariant };
 }
 
-/** A single text file (Markdown content or CSS) within a project. */
+/** A single text file (Typst source or theme) within a project. */
 export interface ProjectFile {
   /** Path relative to the project root, using forward slashes. */
   path: string;
@@ -167,10 +146,26 @@ export interface RenderOutline {
   pageCount: number;
 }
 
+/**
+ * A rendered document.
+ *
+ * The PDF is base64-encoded rather than sent as raw bytes, because a Tauri
+ * command's return value is JSON, and a byte array of that size would be
+ * turned into a list of numbers.
+ */
+export interface RenderResult {
+  /** The PDF, base64-encoded. */
+  pdf: string;
+  outline: RenderOutline;
+  warnings: RenderWarning[];
+}
+
 export interface HealthResponse {
   status: 'ok';
-  weasyprintVersion: string;
-  pythonVersion: string;
+  /** The version of Typst the renderer compiles with. */
+  typstVersion: string;
+  /** The version of Rust the renderer is built with. */
+  rustVersion: string;
 }
 
 /** Error shape returned by the service for a failed render. */
@@ -413,8 +408,6 @@ export interface ChatRequest {
   assets: ProjectAsset[];
   /** The project's fonts. */
   fonts: ProjectFont[];
-  /** Where the render service is. */
-  serviceUrl: string;
   /** Which provider to use, when the user picked one. */
   providerId?: string;
   /** Which model to use, when the user picked one. */

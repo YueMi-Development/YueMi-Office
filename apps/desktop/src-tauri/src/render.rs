@@ -41,6 +41,12 @@ use typst_render::RenderOptions;
 /// name, so the entry file can never be confused with a content file.
 pub const ENTRY_FILE: &str = "_yuemi.typ";
 
+/// The version of Typst the renderer compiles with.
+///
+/// The Typst crates do not export their version, so it is pinned here and
+/// kept in step with `Cargo.toml` by hand.
+pub const TYPST_VERSION: &str = "0.15.1";
+
 /// How many pages are rendered as images.
 ///
 /// Rendering a page is the expensive part of the preview, and a document
@@ -89,7 +95,7 @@ pub struct PdfConfig {
 }
 
 /// The `project.json` of a document project.
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Project {
     /// The version of the on-disk project format.
@@ -251,6 +257,22 @@ pub struct RenderedDocument {
     pub warnings: Vec<RenderWarning>,
     /// The laid-out document, for callers that need more of it.
     pub document: PagedDocument,
+}
+
+/// What a render command gives back.
+///
+/// The PDF is base64-encoded rather than sent as raw bytes, because a Tauri
+/// command's return value is JSON and a byte array of that size would
+/// become a list of numbers.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RenderResult {
+    /// The PDF, base64-encoded.
+    pub pdf: String,
+    /// The document's outline, from the same render.
+    pub outline: RenderOutline,
+    /// The warnings noticed while rendering.
+    pub warnings: Vec<RenderWarning>,
 }
 
 /// The in-memory world a project is compiled in.
@@ -1030,4 +1052,65 @@ pub fn render_project_pages(request: &RenderRequest) -> Result<RenderPages, Stri
 pub fn render_project_outline(request: &RenderRequest) -> Result<RenderOutline, String> {
     let (document, _) = compile_project(request)?;
     Ok(build_outline(&document))
+}
+
+// The command wrappers the webview calls. The logic lives in the plain
+// functions above so it can be tested without a Tauri runtime.
+//
+// Rendering is CPU-bound and can take a moment, so the commands are async
+// and put the work on a blocking thread. Otherwise a long document would
+// freeze the window while it compiled.
+
+/// Renders a project and returns the PDF, its outline and the warnings.
+#[tauri::command(rename = "render_project")]
+pub async fn command_render_project(request: RenderRequest) -> Result<RenderResult, String> {
+    let rendered = tokio::task::spawn_blocking(move || render_project(&request))
+        .await
+        .map_err(|error| format!("The document did not render: {error}"))??;
+
+    Ok(RenderResult {
+        pdf: base64::engine::general_purpose::STANDARD.encode(&rendered.pdf),
+        outline: rendered.outline,
+        warnings: rendered.warnings,
+    })
+}
+
+/// Renders the pages of a project as images.
+#[tauri::command(rename = "render_project_pages")]
+pub async fn command_render_project_pages(request: RenderRequest) -> Result<RenderPages, String> {
+    tokio::task::spawn_blocking(move || render_project_pages(&request))
+        .await
+        .map_err(|error| format!("The pages did not render: {error}"))?
+}
+
+/// Renders a project's outline.
+#[tauri::command(rename = "render_project_outline")]
+pub async fn command_render_project_outline(
+    request: RenderRequest,
+) -> Result<RenderOutline, String> {
+    tokio::task::spawn_blocking(move || render_project_outline(&request))
+        .await
+        .map_err(|error| format!("The outline did not render: {error}"))?
+}
+
+/// Says whether the renderer is working, and with what.
+#[tauri::command(rename = "render_health")]
+pub fn command_render_health() -> HealthResponse {
+    HealthResponse {
+        status: "ok".to_string(),
+        typst_version: TYPST_VERSION.to_string(),
+        rust_version: env!("CARGO_PKG_RUST_VERSION").to_string(),
+    }
+}
+
+/// What the renderer says about itself.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HealthResponse {
+    /// Always `ok`: the command only answers when it can.
+    pub status: String,
+    /// The version of Typst the renderer compiles with.
+    pub typst_version: String,
+    /// The version of Rust the renderer is built with.
+    pub rust_version: String,
 }

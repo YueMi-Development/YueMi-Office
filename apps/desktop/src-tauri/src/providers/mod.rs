@@ -78,6 +78,7 @@ impl ChatMessage {
 #[serde(rename_all = "camelCase")]
 pub struct ToolCall {
     /// The provider's identifier for the call.
+    #[serde(default)]
     pub id: String,
     /// The tool's name.
     pub name: String,

@@ -1,25 +1,30 @@
 //! The assistant's run: ask the model, run the tools it asks for, repeat.
 //!
-//! The tools themselves live in the render service, which already knows how
-//! to run them against a project. This module is the part between the model
-//! and the service: it sends the conversation, reads the answer, runs the
-//! tools the assistant asked for, and sends the results back.
+//! This module is the part between the model and the tools: it sends the
+//! conversation, reads the answer, runs the tools the assistant asked for,
+//! and sends the results back.
 //!
-//! Nothing is written to the project here. The service proposes the changes
+//! The tools themselves live in [`crate::ai_tools`], and the renderer lives
+//! in [`crate::render`]. Both are in this process, so a tool call never
+//! leaves the machine and never waits for a service to answer.
+//!
+//! Nothing is written to the project here. The tools propose the changes
 //! and the user decides, which is what the PRD requires (PRD section 7).
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 use tauri::ipc::Channel;
 
+use crate::ai_tools;
+use crate::ai_tools::ProposedEdit;
 use crate::config::{self, ProviderConfig, ProviderProtocol};
 use crate::providers::{
     self, ChatMessage, ContentPart, ProviderEndpoint, ProviderEvent, ProviderRequest, ToolCall,
     ToolDefinition,
 };
+use crate::render::{Project, ProjectAsset, ProjectFile, ProjectFont};
 
 /// The instructions the assistant works under.
 ///
@@ -27,16 +32,17 @@ use crate::providers::{
 /// rendered output, every write goes through `propose_edit`, and the model
 /// cannot reach outside the project.
 const SYSTEM_PROMPT: &str = "\
-You are the assistant of a Markdown document studio. You help the user write \
+You are the assistant of a Typst document studio. You help the user write \
 and lay out documents.
 
-The project you work on is a folder of Markdown files, CSS stylesheets and \
-assets. You cannot read or write anything outside it, and you cannot run \
-commands.
+The project you work on is a folder of Typst source files, a theme file and \
+assets. The theme is a Typst file that exports a `theme` function, which \
+sets the fonts, the heading styles and the page furniture. You cannot read \
+or write anything outside the project, and you cannot run commands.
 
 Rules:
 - You never edit a file yourself. Every change goes through the propose_edit \
-or set_style tool, and the user sees the difference and decides whether to \
+or propose_style tool, and the user sees the difference and decides whether to \
 keep it.
 - Read before you write. Use list_sections and read_section to see what the \
 document says, and search when you are not sure where something is.
@@ -53,11 +59,11 @@ see.
 /// the prompt says the same thing about the project but says that no change
 /// is being made.
 const CHAT_SYSTEM_PROMPT: &str = "\
-You are the assistant of a Markdown document studio. You answer questions \
+You are the assistant of a Typst document studio. You answer questions \
 about the document the user is working on.
 
-The project is a folder of Markdown files, CSS stylesheets and assets. You \
-cannot read or write anything outside it, and you cannot run commands.
+The project is a folder of Typst source files, a theme file and assets. \
+You cannot read or write anything outside it, and you cannot run commands.
 
 Rules:
 - You answer questions. You do not make changes: no file is edited and no \
@@ -80,18 +86,16 @@ pub struct ChatRequest {
     /// The conversation so far, oldest first.
     pub messages: Vec<ChatMessage>,
     /// The project the assistant works on.
-    pub project: serde_json::Value,
+    pub project: Project,
     /// The project's text files.
     #[serde(default)]
-    pub files: Vec<serde_json::Value>,
+    pub files: Vec<ProjectFile>,
     /// The project's assets.
     #[serde(default)]
-    pub assets: Vec<serde_json::Value>,
+    pub assets: Vec<ProjectAsset>,
     /// The project's fonts.
     #[serde(default)]
-    pub fonts: Vec<serde_json::Value>,
-    /// Where the render service is.
-    pub service_url: String,
+    pub fonts: Vec<ProjectFont>,
     /// Which provider to use, when the user picked one.
     #[serde(default)]
     pub provider_id: Option<String>,
@@ -196,8 +200,6 @@ impl CancelFlag {
 
 /// The agent's run.
 pub struct Agent {
-    /// Where the render service is.
-    service_url: String,
     /// The provider to talk to.
     provider: ProviderConfig,
     /// Where the provider is reached, and with what key.
@@ -259,247 +261,136 @@ impl Agent {
             .unwrap_or_default()
     }
 
-    /// Asks the render service what tools the assistant may call.
-    async fn fetch_tools(&self) -> Result<Vec<ToolDefinition>, String> {
-        let url = format!("{}/v1/ai/tools", self.service_url.trim_end_matches('/'));
-        let response = providers::client()
-            .map_err(|error| error.message)?
-            .get(&url)
-            .send()
-            .await
-            .map_err(|error| {
-                providers::describe_transport_failure("Could not reach the render service", &error)
-            })?;
-
-        if !response.status().is_success() {
-            return Err(format!(
-                "The render service answered with {}.",
-                response.status().as_u16()
-            ));
-        }
-
-        let body: serde_json::Value = response
-            .json()
-            .await
-            .map_err(|error| format!("The render service sent something unreadable: {error}"))?;
-
-        let tools = body
-            .as_array()
-            .ok_or_else(|| "The render service did not send a list of tools.".to_string())?;
-
-        Ok(tools
-            .iter()
-            .map(|tool| ToolDefinition {
-                name: tool
-                    .get("name")
-                    .and_then(|value| value.as_str())
-                    .unwrap_or_default()
-                    .to_string(),
-                description: tool
-                    .get("description")
-                    .and_then(|value| value.as_str())
-                    .unwrap_or_default()
-                    .to_string(),
-                parameters: tool
-                    .get("parameters")
-                    .cloned()
-                    .unwrap_or_else(|| json!({ "type": "object" })),
-            })
-            .collect())
-    }
-
-    /// Runs the tools the assistant asked for.
+    /// The tools the assistant may call.
     ///
-    /// The calls go to the render service, which runs them against the
-    /// project and returns both what each tool produced and the changes the
-    /// tools proposed.
-    async fn run_tools(
-        &self,
-        request: &ChatRequest,
-        calls: &[ToolCall],
-    ) -> Result<(Vec<AssistantEvent>, Vec<ChatMessage>), String> {
-        let url = format!("{}/v1/ai/session", self.service_url.trim_end_matches('/'));
-
-        let body = json!({
-            "project": request.project,
-            "files": request.files,
-            "assets": request.assets,
-            "fonts": request.fonts,
-            "calls": calls
-                .iter()
-                .map(|call| json!({
-                    "id": call.id,
-                    "name": call.name,
-                    "arguments": call.arguments,
-                }))
-                .collect::<Vec<_>>(),
-        });
-
-        let response = providers::client()
-            .map_err(|error| error.message)?
-            .post(&url)
-            .json(&body)
-            .send()
-            .await
-            .map_err(|error| {
-                providers::describe_transport_failure("Could not reach the render service", &error)
-            })?;
-
-        if !response.status().is_success() {
-            return Err(format!(
-                "The render service answered with {}.",
-                response.status().as_u16()
-            ));
-        }
-
-        let session: serde_json::Value = response
-            .json()
-            .await
-            .map_err(|error| format!("The render service sent something unreadable: {error}"))?;
-
-        let mut events = Vec::new();
-        let mut messages = Vec::new();
-
-        if let Some(results) = session.get("calls").and_then(|value| value.as_array()) {
-            for result in results {
-                let id = result
-                    .get("id")
-                    .and_then(|value| value.as_str())
-                    .unwrap_or_default()
-                    .to_string();
-                let name = result
-                    .get("name")
-                    .and_then(|value| value.as_str())
-                    .unwrap_or_default()
-                    .to_string();
-                let ok = result
-                    .get("ok")
-                    .and_then(|value| value.as_bool())
-                    .unwrap_or(false);
-                let error = result
-                    .get("error")
-                    .and_then(|value| value.as_str())
-                    .map(|value| value.to_string());
-                let payload = result.get("result").cloned();
-
-                events.push(AssistantEvent::ToolResult {
-                    id: id.clone(),
-                    name: name.clone(),
-                    ok,
-                    result: payload.clone(),
-                    error: error.clone(),
-                });
-
-                // The answer the model gets: what the tool produced, or why
-                // it did not.
-                let text = match (&payload, &error) {
-                    (_, Some(reason)) => format!("The tool '{name}' failed: {reason}"),
-                    (Some(value), None) => serde_json::to_string(value).unwrap_or_default(),
-                    (None, None) => String::new(),
-                };
-
-                messages.push(ChatMessage {
-                    role: "tool".to_string(),
-                    content: vec![ContentPart::Text { text }],
-                    tool_calls: Vec::new(),
-                    tool_call_id: Some(id),
-                    tool_name: Some(name),
-                });
-            }
-        }
-
-        // The changes the tools proposed, which the user decides on.
-        let edits = session
-            .get("edits")
-            .and_then(|value| value.as_array())
-            .cloned()
-            .unwrap_or_default();
-
-        for edit in &edits {
-            events.push(AssistantEvent::Edit { edit: edit.clone() });
-        }
-
-        Ok((events, messages))
-    }
-
-    /// Asks the service for the rendered pages.
-    ///
-    /// The pages are what the assistant looks at after a change that
-    /// affects the layout.
-    async fn fetch_pages(
-        &self,
-        request: &ChatRequest,
-    ) -> Result<(Vec<ContentPart>, usize), String> {
-        let url = format!("{}/v1/render/pages", self.service_url.trim_end_matches('/'));
-
-        let body = json!({
-            "project": request.project,
-            "files": request.files,
-            "assets": request.assets,
-            "fonts": request.fonts,
-        });
-
-        let response = providers::client()
-            .map_err(|error| error.message)?
-            .post(&url)
-            .json(&body)
-            .send()
-            .await
-            .map_err(|error| {
-                providers::describe_transport_failure("Could not reach the render service", &error)
-            })?;
-
-        if !response.status().is_success() {
-            return Err(format!(
-                "The render service answered with {}.",
-                response.status().as_u16()
-            ));
-        }
-
-        let body: serde_json::Value = response
-            .json()
-            .await
-            .map_err(|error| format!("The render service sent something unreadable: {error}"))?;
-
-        let page_count = body
-            .get("pageCount")
-            .and_then(|value| value.as_u64())
-            .unwrap_or(0) as usize;
-
-        let mut parts = Vec::new();
-
-        if let Some(pages) = body.get("pages").and_then(|value| value.as_array()) {
-            for page in pages.iter().take(MAX_FEEDBACK_PAGES) {
-                let Some(base64) = page.get("pngBase64").and_then(|value| value.as_str()) else {
-                    continue;
-                };
-                parts.push(ContentPart::Image {
-                    base64: base64.to_string(),
-                    mime_type: "image/png".to_string(),
-                });
-            }
-        }
-
-        Ok((parts, page_count))
+    /// They are the ones in this process, so the model is told what it may
+    /// do rather than what the user typed.
+    fn tools(&self) -> Vec<ToolDefinition> {
+        ai_tools::tool_descriptions()
     }
 
     /// Whether a tool call changes the layout.
     ///
-    /// The layout only changes when the stylesheet or a file's contents
-    /// change, so only those calls are worth rendering again.
+    /// The layout only changes when the theme or a file's contents change,
+    /// so only those calls are worth rendering again.
     pub fn changes_layout(call: &ToolCall) -> bool {
         match call.name.as_str() {
-            "set_style" => true,
+            "propose_style" => true,
             "render_preview" => true,
             "propose_edit" => call
                 .arguments
                 .get("path")
                 .and_then(|value| value.as_str())
-                .map(|path| path.to_ascii_lowercase().ends_with(".css"))
+                .map(|path| path.to_ascii_lowercase().ends_with(".typ"))
                 .unwrap_or(false),
             _ => false,
         }
     }
+}
+
+/// Runs the tools the assistant asked for.
+///
+/// The calls run against the project that travelled with the request and
+/// produce both what each tool returned and the changes the tools proposed.
+///
+/// The work is CPU-bound, so it is put on a blocking thread: the run must
+/// keep answering the provider while the renderer is busy.
+async fn run_tools(
+    request: ChatRequest,
+    calls: Vec<ToolCall>,
+) -> Result<(Vec<AssistantEvent>, Vec<ChatMessage>, Vec<ProposedEdit>), String> {
+    tokio::task::spawn_blocking(move || {
+        let session = ai_tools::run_session(
+            request.project,
+            request.files,
+            request.assets,
+            request.fonts,
+            &calls,
+        );
+
+        let mut events = Vec::new();
+        let mut messages = Vec::new();
+
+        for result in &session.calls {
+            events.push(AssistantEvent::ToolResult {
+                id: result.id.clone(),
+                name: result.name.clone(),
+                ok: result.ok,
+                result: result.result.clone(),
+                error: result.error.clone(),
+            });
+
+            // The answer the model gets: what the tool produced, or why it
+            // did not.
+            let text = match (&result.result, &result.error) {
+                (_, Some(reason)) => format!("The tool '{}' failed: {reason}", result.name),
+                (Some(value), None) => serde_json::to_string(value).unwrap_or_default(),
+                (None, None) => String::new(),
+            };
+
+            messages.push(ChatMessage {
+                role: "tool".to_string(),
+                content: vec![ContentPart::Text { text }],
+                tool_calls: Vec::new(),
+                tool_call_id: Some(result.id.clone()),
+                tool_name: Some(result.name.clone()),
+            });
+        }
+
+        // The changes the tools proposed, which the user decides on.
+        for edit in &session.edits {
+            events.push(AssistantEvent::Edit {
+                edit: serde_json::to_value(edit).unwrap_or(serde_json::Value::Null),
+            });
+        }
+
+        Ok::<_, String>((events, messages, session.edits))
+    })
+    .await
+    .map_err(|error| format!("The tools did not run: {error}"))?
+}
+
+/// Renders the pages, so the assistant can see what a change did.
+///
+/// The changes the tools proposed are put into the project first, so the
+/// pages show the document as it would be if the user keeps them.
+async fn render_pages(
+    request: ChatRequest,
+    edits: Vec<ProposedEdit>,
+) -> Result<(Vec<ContentPart>, usize), String> {
+    tokio::task::spawn_blocking(move || {
+        let mut files = request.files;
+
+        for edit in &edits {
+            match files.iter_mut().find(|file| file.path == edit.path) {
+                Some(file) => file.text = edit.new_text.clone(),
+                None => files.push(ProjectFile {
+                    path: edit.path.clone(),
+                    text: edit.new_text.clone(),
+                }),
+            }
+        }
+
+        let rendered = crate::render::render_project_pages(&crate::render::RenderRequest {
+            project: request.project,
+            files,
+            assets: request.assets,
+            fonts: request.fonts,
+        })?;
+
+        let mut parts = Vec::new();
+
+        for page in rendered.pages.iter().take(MAX_FEEDBACK_PAGES) {
+            parts.push(ContentPart::Image {
+                base64: page.png_base64.clone(),
+                mime_type: "image/png".to_string(),
+            });
+        }
+
+        Ok::<_, String>((parts, rendered.page_count))
+    })
+    .await
+    .map_err(|error| format!("The pages did not render: {error}"))?
 }
 
 /// Runs the assistant and streams what happens back to the webview.
@@ -572,7 +463,6 @@ pub async fn run_in(
     let endpoint = providers::endpoint_for(&provider, api_key);
 
     let mut agent = Agent {
-        service_url: request.service_url.clone(),
         provider: provider.clone(),
         endpoint,
         model,
@@ -580,16 +470,7 @@ pub async fn run_in(
         cancel: cancel.clone(),
     };
 
-    let tools = match agent.fetch_tools().await {
-        Ok(tools) => tools,
-        Err(message) => {
-            let _ = channel.send(AssistantEvent::Error { message });
-            let _ = channel.send(AssistantEvent::Done);
-            return Ok(());
-        }
-    };
-
-    agent.tools = tools;
+    agent.tools = agent.tools();
 
     // In the chat mode the assistant only answers questions, so it is only
     // offered the tools that read the document. A tool that is not offered
@@ -610,6 +491,13 @@ pub async fn run_in(
 
     // The conversation the model is answering, which grows as the tools run.
     let mut messages = request.messages.clone();
+
+    // The changes the assistant has proposed so far.
+    //
+    // They are not written to the project — the user decides that — but
+    // they are put into the pages the model is shown, so that it can see
+    // what its own change does.
+    let mut proposed: Vec<ProposedEdit> = Vec::new();
 
     for round in 0..MAX_TOOL_ROUNDS {
         if agent.cancel.is_cancelled() {
@@ -694,12 +582,13 @@ pub async fn run_in(
             break;
         }
 
-        match agent.run_tools(&request, &turn.tool_calls).await {
-            Ok((events, answers)) => {
+        match run_tools(request.clone(), turn.tool_calls.clone()).await {
+            Ok((events, answers, edits)) => {
                 for event in events {
                     let _ = channel.send(event);
                 }
                 messages.extend(answers);
+                proposed.extend(edits);
             }
             Err(message) => {
                 let _ = channel.send(AssistantEvent::Error { message });
@@ -712,7 +601,7 @@ pub async fn run_in(
         let wants_pages = turn.tool_calls.iter().any(Agent::changes_layout);
 
         if wants_pages && !agent.cancel.is_cancelled() {
-            match agent.fetch_pages(&request).await {
+            match render_pages(request.clone(), proposed.clone()).await {
                 Ok((parts, page_count)) => {
                     let _ = channel.send(AssistantEvent::Pages { page_count });
 

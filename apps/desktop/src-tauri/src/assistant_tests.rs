@@ -2,7 +2,9 @@
 
 use crate::assistant::Agent;
 use crate::config::{AppConfig, ProviderConfig, ProviderProtocol};
-use crate::testing::{CancelFlag, ToolCall, provider_key_in, set_provider_key_in, write_config_to};
+use crate::testing::{
+    CancelFlag, Project, ToolCall, provider_key_in, set_provider_key_in, write_config_to,
+};
 use serde_json::json;
 
 use tempfile::TempDir;
@@ -17,15 +19,23 @@ fn call(name: &str, arguments: serde_json::Value) -> ToolCall {
 }
 
 #[test]
-fn a_stylesheet_change_affects_the_layout() {
+fn a_theme_change_affects_the_layout() {
     assert!(Agent::changes_layout(&call(
         "propose_edit",
-        json!({ "path": "styles/main.css" })
+        json!({ "path": "theme.typ" })
     )));
 }
 
 #[test]
-fn a_markdown_change_does_not_affect_the_layout() {
+fn a_change_to_a_content_file_affects_the_layout() {
+    assert!(Agent::changes_layout(&call(
+        "propose_edit",
+        json!({ "path": "chapters/intro.typ" })
+    )));
+}
+
+#[test]
+fn a_change_to_a_file_that_is_not_typst_does_not_affect_the_layout() {
     assert!(!Agent::changes_layout(&call(
         "propose_edit",
         json!({ "path": "chapters/intro.md" })
@@ -33,8 +43,13 @@ fn a_markdown_change_does_not_affect_the_layout() {
 }
 
 #[test]
-fn setting_a_style_affects_the_layout() {
-    assert!(Agent::changes_layout(&call("set_style", json!({}))));
+fn proposing_a_style_affects_the_layout() {
+    assert!(Agent::changes_layout(&call("propose_style", json!({}))));
+}
+
+#[test]
+fn rendering_a_preview_affects_the_layout() {
+    assert!(Agent::changes_layout(&call("render_preview", json!({}))));
 }
 
 #[test]
@@ -98,11 +113,10 @@ fn settings(providers: Vec<ProviderConfig>, keys: &[&str]) -> TempDir {
 fn request(provider_id: Option<&str>, model: Option<&str>) -> crate::testing::ChatRequest {
     crate::testing::ChatRequest {
         messages: Vec::new(),
-        project: json!({ "root": "test" }),
+        project: Project::default(),
         files: Vec::new(),
         assets: Vec::new(),
         fonts: Vec::new(),
-        service_url: "http://127.0.0.1:32100".to_string(),
         provider_id: provider_id.map(str::to_string),
         model: model.map(str::to_string),
         mode: None,
