@@ -1,0 +1,161 @@
+{
+  "version": 2,
+  "skills": {
+    "antislop": {
+      "source": "miqdadbadjuber/anti-slop",
+      "sourceType": "github",
+      "skillPath": "skills/antislop/SKILL.md",
+      "computedHash": "5db1f692cb9722e0f642e9a378d8c44b011a102726efb41bf0003c8c37f0a137"
+    },
+    "antislop-code": {
+      "source": "miqdadbadjuber/anti-slop",
+      "sourceType": "github",
+      "skillPath": "skills/antislop-code/SKILL.md",
+      "computedHash": "4a2d3d64037896a3ab4e2c3df026e7a59fa92458617c65a2e0ed7fc3c456266a"
+    },
+    "antislop-copywriting": {
+      "source": "miqdadbadjuber/anti-slop",
+      "sourceType": "github",
+      "skillPath": "skills/antislop-copywriting/SKILL.md",
+      "computedHash": "57a00dcdb416ea8ed4b2a388ef9580f120afbc3d9bf8bfa8cd4e6796443c9a22"
+    },
+    "async-python-patterns": {
+      "source": "wshobson/agents",
+      "sourceType": "github",
+      "skillPath": "plugins/python-development/skills/async-python-patterns/SKILL.md",
+      "computedHash": "5ed4e3ea95b394323088b0754668d72d8d0f70905826be41bf3b440f71fa9f07"
+    },
+    "brainstorming": {
+      "source": "obra/superpowers",
+      "sourceType": "github",
+      "skillPath": "skills/brainstorming/SKILL.md",
+      "computedHash": "a7424777b7f81e3eb9b4556d29fe233553736d8255780d3e1feea190fef61fef"
+    },
+    "commit-work": {
+      "source": "softaworks/agent-toolkit",
+      "sourceType": "github",
+      "skillPath": "skills/commit-work/SKILL.md",
+      "computedHash": "9df7a6fa2b73587e0be1034a2c00bd72157bef546a0f724be589c3612e862383"
+    },
+    "debugging-strategies": {
+      "source": "wshobson/agents",
+      "sourceType": "github",
+      "skillPath": "plugins/developer-essentials/skills/debugging-strategies/SKILL.md",
+      "computedHash": "dde59f5960827ee0ce971e1b8c264247b8ac663ccf4406dc8c6a322a8a51d100"
+    },
+    "dependency-updater": {
+      "source": "softaworks/agent-toolkit",
+      "sourceType": "github",
+      "skillPath": "skills/dependency-updater/SKILL.md",
+      "computedHash": "12dfd3ffb6f21ac5505bbdf0be4f9d43c492ba8d78620ccb6b613a7cff7a55fd"
+    },
+    "logging-best-practices": {
+      "source": "boristane/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/logging-best-practices/SKILL.md",
+      "computedHash": "cca34d2c8b75cd9d9a2f3b4e704130e68c046a263325108a0b2740b328a39480"
+    },
+    "python-code-style": {
+      "source": "wshobson/agents",
+      "sourceType": "github",
+      "skillPath": "plugins/python-development/skills/python-code-style/SKILL.md",
+      "computedHash": "ac7538b1ccb0e4b1cbcccfe883ff3d5e004e138af1b6830359a81a0400abc71c"
+    },
+    "python-design-patterns": {
+      "source": "wshobson/agents",
+      "sourceType": "github",
+      "skillPath": "plugins/python-development/skills/python-design-patterns/SKILL.md",
+      "computedHash": "bb31c26764cb2bf8f19955e1610e8102509cb1569e1575a413ffb3ada23a3c16"
+    },
+    "requesting-code-review": {
+      "source": "obra/superpowers",
+      "sourceType": "github",
+      "skillPath": "skills/requesting-code-review/SKILL.md",
+      "computedHash": "32bcc25e8c3315d0150f646ee0067c9d4bfbc7719c34012db9c202e17cce8a14"
+    },
+    "rust-async-patterns": {
+      "source": "wshobson/agents",
+      "sourceType": "github",
+      "skillPath": "plugins/systems-programming/skills/rust-async-patterns/SKILL.md",
+      "computedHash": "286b73077a434af5844dd480e5b98026bea5b31fcfafce3c04405a7392331601"
+    },
+    "rust-best-practices": {
+      "source": "apollographql/skills",
+      "sourceType": "github",
+      "skillPath": "skills/rust-best-practices/SKILL.md",
+      "computedHash": "7e12e68aa50152eb7ba9ea1f88ca5380c846ea0175f8ab6788bb79b7faf12ca0"
+    },
+    "rust-call-graph": {
+      "source": "zhanghandong/rust-skills",
+      "sourceType": "github",
+      "skillPath": "skills/rust-call-graph/SKILL.md",
+      "computedHash": "2b03ff07f54181ad56bbfd3539bc31029e22ed5e8bfd93f7804fec4eba119622"
+    },
+    "rust-deps-visualizer": {
+      "source": "zhanghandong/rust-skills",
+      "sourceType": "github",
+      "skillPath": "skills/rust-deps-visualizer/SKILL.md",
+      "computedHash": "779778c9133c1ea0d4c2ee582512baf045073ced8a5631b78d4f413e48691e49"
+    },
+    "rust-engineer": {
+      "source": "jeffallan/claude-skills",
+      "sourceType": "github",
+      "skillPath": "skills/rust-engineer/SKILL.md",
+      "computedHash": "41b14a9b58417e000511e6fb3e7eb3727c9a051627788a0ad67963c7244ba248"
+    },
+    "rust-testing": {
+      "source": "affaan-m/everything-claude-code",
+      "sourceType": "github",
+      "skillPath": "skills/rust-testing/SKILL.md",
+      "computedHash": "4a16853504a8d9ee1af3abb29e4db9b506ddc46f5ef6bafff45193a1a1a1e520"
+    },
+    "tauri": {
+      "source": "full-stack-skills/tauri-skills",
+      "sourceType": "github",
+      "skillPath": "skills/tauri/SKILL.md",
+      "computedHash": "2644087ad938580bfcd837b35ce15ed8007e3d8826f8b3dc2e70bbdbd608e8b9"
+    },
+    "tauri-app-develop": {
+      "source": "full-stack-skills/tauri-skills",
+      "sourceType": "github",
+      "skillPath": "skills/tauri-app-develop/SKILL.md",
+      "computedHash": "9913cadd005548b6bc054253e0cfb0833c7fbdb5cc2f259a6254fc636e8ce06c"
+    },
+    "tauri-build": {
+      "source": "full-stack-skills/tauri-skills",
+      "sourceType": "github",
+      "skillPath": "skills/tauri-build/SKILL.md",
+      "computedHash": "7625f3f4370d6c21c919c3e0a7e261d76e558b511a7cc079d205dcbdb7483b32"
+    },
+    "tauri-development": {
+      "source": "Mindrally/skills",
+      "sourceType": "github",
+      "skillPath": "tauri-development/SKILL.md",
+      "computedHash": "517703486a5db6423c3b2b4451c65321d3fa87e744e753f312d3e6989ce15ff9"
+    },
+    "tauri-security": {
+      "source": "full-stack-skills/tauri-skills",
+      "sourceType": "github",
+      "skillPath": "skills/tauri-security/SKILL.md",
+      "computedHash": "f283f4baf9447b7d56ea73176a1a8cad36d688ea0ed5130b47a6837c2719cf9c"
+    },
+    "typescript-advanced-types": {
+      "source": "wshobson/agents",
+      "sourceType": "github",
+      "skillPath": "plugins/javascript-typescript/skills/typescript-advanced-types/SKILL.md",
+      "computedHash": "34c5b3863fde1fc85981ac583ecaf0140471b374d0b7002ac5bc0bea2cf38b24"
+    },
+    "typescript-expert": {
+      "source": "sickn33/agentic-awesome-skills",
+      "sourceType": "github",
+      "skillPath": "skills/typescript-expert/SKILL.md",
+      "computedHash": "cd07dd27439b414ae2f3fd9c81bb652e6e491c6ceb1e24b5a46d61482e53f3c2"
+    },
+    "verification-before-completion": {
+      "source": "obra/superpowers",
+      "sourceType": "github",
+      "skillPath": "skills/verification-before-completion/SKILL.md",
+      "computedHash": "09b0e3a4689c1c38a3b8fc6ef57a1d4165aa33c0013d546dbde9dd348941a319"
+    }
+  }
+}
