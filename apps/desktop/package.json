@@ -19,19 +19,19 @@
     "@codemirror/state": "^6.5.0",
     "@codemirror/view": "^6.35.0",
     "@lezer/highlight": "^1.2.5",
-    "@tauri-apps/api": "^2.4.0",
+    "@tauri-apps/api": "^2.12.5",
     "@tauri-apps/plugin-dialog": "^2.2.0",
     "@yuemi/protocol": "*",
     "pdfjs-dist": "^4.10.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "zustand": "^5.0.0"
+    "zustand": "^5.1.0"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2.12.0",
+    "@tauri-apps/cli": "^2.12.6",
     "@testing-library/jest-dom": "^6.6.0",
     "@testing-library/react": "^16.1.0",
-    "@types/react": "^19.0.0",
+    "@types/react": "^19.3.1",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.3.0",
     "jsdom": "^25.0.0",
